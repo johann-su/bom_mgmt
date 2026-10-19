@@ -1,0 +1,32 @@
+FROM node:22-alpine AS deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+
+FROM node:22-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup -S nodejs && adduser -S nextjs -G nodejs && apk add --no-cache su-exec
+
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# SQL migrations + runner, applied on boot before the server starts
+COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle
+COPY --from=builder --chown=nextjs:nodejs /app/scripts ./scripts
+
+EXPOSE 3000
+ENV PORT=3000 HOSTNAME=0.0.0.0
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s \
+    CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+
+# Stay root at boot to fix ownership of the (volume-mounted) filesystem
+# storage directory, then drop to the unprivileged user via su-exec.
+CMD ["sh", "-c", "if [ -n \"$STORAGE_PATH\" ]; then mkdir -p \"$STORAGE_PATH\" && chown nextjs:nodejs \"$STORAGE_PATH\"; fi && exec su-exec nextjs sh -c 'node scripts/migrate.mjs && node server.js'"]

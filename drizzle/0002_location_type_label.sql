@@ -1,0 +1,2 @@
+ALTER TABLE "location_types" ADD COLUMN "label_template_id" uuid;--> statement-breakpoint
+ALTER TABLE "location_types" ADD CONSTRAINT "location_types_label_template_id_label_templates_id_fk" FOREIGN KEY ("label_template_id") REFERENCES "public"."label_templates"("id") ON DELETE set null ON UPDATE no action;
