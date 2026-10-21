@@ -86,6 +86,25 @@ export async function svgToPng(svg: string, size: PageSize, dpi = 300): Promise<
 }
 
 /**
+ * Pages converted to plain filled outlines for slicers (svg-outline.ts).
+ * The converter, polygon library and fonts load only when this is used.
+ */
+export async function svgsToOutlines(pages: string[]): Promise<{ pages: string[]; warnings: string[] }> {
+  const [{ outlineSvg }, { loadLabelFonts, textOutliner }] = await Promise.all([
+    import("@/lib/svg-outline"),
+    import("@/lib/label-fonts"),
+  ]);
+  const outliner = textOutliner(await loadLabelFonts());
+  const warnings = new Set<string>();
+  const out = pages.map((page) => {
+    const result = outlineSvg(page, outliner);
+    result.warnings.forEach((w) => warnings.add(w));
+    return result.svg;
+  });
+  return { pages: out, warnings: [...warnings] };
+}
+
+/**
  * A single file as-is, several as a ZIP (`name-01.ext`, `name-02.ext`, …)
  * named after the format, so the SVG and PNG archives don't overwrite each other.
  */

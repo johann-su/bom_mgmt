@@ -55,8 +55,8 @@ const LONG_VALUES = new Set(["d", "points"]);
 
 // --- Tokenising ---
 
-type XmlElement = { tag: string; attrs: [string, string][]; children: XmlNode[] };
-type XmlNode = XmlElement | { text: string };
+export type XmlElement = { tag: string; attrs: [string, string][]; children: XmlNode[] };
+export type XmlNode = XmlElement | { text: string };
 
 const ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
 
@@ -71,7 +71,7 @@ function decodeEntities(text: string): string {
 }
 
 /** A permissive-but-strict XML tokeniser: anything it can't read rejects the file. */
-function parseXml(src: string): XmlNode[] | null {
+export function parseXml(src: string): XmlNode[] | null {
   const root: XmlElement = { tag: "#root", attrs: [], children: [] };
   const stack = [root];
   let i = 0;

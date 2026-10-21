@@ -2,13 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FileDown, FileImage, FileSpreadsheet, FileType } from "lucide-react";
+import { ChevronDown, FileDown, FileImage, FileSpreadsheet, FileType } from "lucide-react";
 import { pageSize, type LabelVariables, type TemplateOption } from "@/lib/label-template";
 import { labelsCsv, renderPages } from "@/lib/label-render";
-import { downloadBlob, filesOrZip, pagesToPdf, svgToPng } from "@/lib/label-export";
+import { downloadBlob, filesOrZip, pagesToPdf, svgToPng, svgsToOutlines } from "@/lib/label-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -201,14 +207,42 @@ export function LabelPrinter({
             <FileDown className="size-4" />
             {busy === "PDF" ? "Creating…" : "PDF"}
           </Button>
-          <Button
-            variant="outline"
-            disabled={none || busy !== null}
-            onClick={() => run("SVG", () => filesOrZip(pages, filename, "svg", "image/svg+xml"))}
-          >
-            <FileType className="size-4" />
-            SVG
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={none || busy !== null}>
+                <FileType className="size-4" />
+                {busy === "SVG" ? "Creating…" : "SVG"}
+                <ChevronDown className="size-3.5 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80">
+              <DropdownMenuItem
+                onSelect={() => run("SVG", () => filesOrZip(pages, filename, "svg", "image/svg+xml"))}
+                className="flex-col items-start gap-0.5"
+              >
+                <span className="font-medium">Editable</span>
+                <span className="text-xs text-muted-foreground">
+                  Live text and colours — for Inkscape, Illustrator or printing.
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  run("SVG", async () => {
+                    const outlined = await svgsToOutlines(pages);
+                    for (const w of outlined.warnings) toast.warning(w);
+                    return filesOrZip(outlined.pages, `${filename}-outlines`, "svg", "image/svg+xml");
+                  })
+                }
+                className="flex-col items-start gap-0.5"
+              >
+                <span className="font-medium">Outlines for 3D printing</span>
+                <span className="text-xs text-muted-foreground">
+                  Everything as plain filled shapes, white parts cut out — for Bambu Studio, OrcaSlicer or
+                  PrusaSlicer.
+                </span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button
             variant="outline"
             disabled={none || busy !== null}

@@ -13,6 +13,7 @@ import {
   type Guide,
   type Rect,
 } from "@/lib/label-snap";
+import type { Restack } from "@/lib/label-order";
 import type { LabelElement, LabelTemplate, LabelVariables } from "@/lib/label-template";
 
 type Mode = "move" | "resize" | "rotate";
@@ -79,6 +80,7 @@ export function LabelCanvas({
   onSelect,
   onChange,
   onDelete,
+  onRestack,
 }: {
   template: LabelTemplate;
   vars: LabelVariables;
@@ -90,6 +92,8 @@ export function LabelCanvas({
   // drag, so the whole drag undoes as one step.
   onChange: (boxes: Record<string, Rect>, gesture?: string) => void;
   onDelete: (ids: string[]) => void;
+  // ⌘] / ⌘[ bring the selection forward / send it back (⇧ for all the way).
+  onRestack: (how: Restack) => void;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   // useId output has characters that need escaping inside url(#…).
@@ -231,6 +235,12 @@ export function LabelCanvas({
     }
     if (e.key === "Escape") return onSelect([]);
     if (selection.length === 0) return;
+    if ((e.metaKey || e.ctrlKey) && (e.code === "BracketRight" || e.code === "BracketLeft")) {
+      // Also keeps ⌘[ from being the browser's Back.
+      e.preventDefault();
+      const up = e.code === "BracketRight";
+      return onRestack(e.shiftKey ? (up ? "front" : "back") : up ? "forward" : "backward");
+    }
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       return onDelete(selection.map((el) => el.id));

@@ -15,7 +15,12 @@ import {
   AlignStartHorizontal,
   AlignStartVertical,
   AlignVerticalDistributeCenter,
+  ChevronDown,
+  ChevronUp,
+  ChevronsDown,
+  ChevronsUp,
   Copy,
+  GripVertical,
   QrCode,
   Redo2,
   Library,
@@ -42,6 +47,7 @@ import {
 } from "@/lib/label-template";
 import { renderLabelBody } from "@/lib/label-render";
 import { alignElements, distributeElements, type Alignment } from "@/lib/label-snap";
+import { moveElements, restack, type Restack } from "@/lib/label-order";
 import { parseClipboard, placePasted, serializeElements } from "@/lib/label-clipboard";
 import { importSvg, type ImportedSvg } from "@/lib/svg-sanitize";
 import { createHistory, record, redo, undo, type History } from "@/lib/undo-history";
@@ -401,6 +407,29 @@ export function LabelDesigner({
     setSelectedIds([]);
   }
 
+  /** Bring forward / send backward (or all the way) — one undo step. */
+  function restackSelection(how: Restack, ids = selection.map((el) => el.id)) {
+    setTemplate((t) => {
+      const elements = restack(t.elements, ids, how);
+      return elements === t.elements ? t : { ...t, elements };
+    });
+  }
+
+  // Dragging rows of the element list: what's being dragged, and where it
+  // would land ("above" a row = in front of that element).
+  const listDrag = useRef<string[] | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ id: string; side: "above" | "below" } | null>(null);
+
+  function dropOnRow(anchorId: string, side: "above" | "below") {
+    const ids = listDrag.current;
+    if (!ids) return;
+    setTemplate((t) => {
+      // The list shows the front first, so "above" is later in drawing order.
+      const elements = moveElements(t.elements, ids, anchorId, side === "above" ? "after" : "before");
+      return elements === t.elements ? t : { ...t, elements };
+    });
+  }
+
   // Align and distribute buttons, for one element (against the label) or
   // several (against each other).
   function renderArrange(els: LabelElement[]) {
@@ -442,6 +471,29 @@ export function LabelDesigner({
                 <Icon className="size-4" />
               </Button>
             ))}
+        </div>
+        <span className="mt-1">Order</span>
+        <div className="flex flex-wrap gap-1">
+          {(
+            [
+              ["front", ChevronsUp, "Bring to front (⇧⌘])"],
+              ["forward", ChevronUp, "Bring forward (⌘])"],
+              ["backward", ChevronDown, "Send backward (⌘[)"],
+              ["back", ChevronsDown, "Send to back (⇧⌘[)"],
+            ] as const
+          ).map(([how, Icon, title]) => (
+            <Button
+              key={how}
+              size="icon"
+              variant="ghost"
+              className="size-8"
+              aria-label={title}
+              title={title}
+              onClick={() => restackSelection(how, els.map((el) => el.id))}
+            >
+              <Icon className="size-4" />
+            </Button>
+          ))}
         </div>
       </div>
     );
@@ -578,6 +630,7 @@ export function LabelDesigner({
             onSelect={setSelectedIds}
             onChange={updateElements}
             onDelete={remove}
+            onRestack={(how) => restackSelection(how)}
           />
         </div>
       ) : (
@@ -588,7 +641,7 @@ export function LabelDesigner({
       <p className="-mt-2 text-xs text-muted-foreground">
         Previewed with {vars === SAMPLE_VARIABLES ? "sample data" : "this location"} ({vars.path}). Drag to move; the square handle
         resizes (Shift keeps proportions), the round one rotates (Shift locks to 15°). Shift-click or drag a
-        box to select several. Hold Alt to place freely, arrow keys nudge, Delete removes, ⌘C / ⌘V copy and paste. Drop or paste an SVG to add a graphic.
+        box to select several. Hold Alt to place freely, arrow keys nudge, Delete removes, ⌘C / ⌘V copy and paste, ⌘] / ⌘[ change what&apos;s on top. Drop or paste an SVG to add a graphic.
       </p>
 
       {problems.length > 0 && (
@@ -678,14 +731,53 @@ export function LabelDesigner({
               }}
             />
           </div>
+          {template.elements.length > 1 && (
+            <p className="-mt-1 text-xs text-muted-foreground">Front first — drag to change what&apos;s on top.</p>
+          )}
           <ul className="grid gap-1">
-            {template.elements.map((el) => (
-              <li key={el.id}>
+            {/* Front first, like the layers panel of a drawing app. */}
+            {[...template.elements].reverse().map((el) => (
+              <li
+                key={el.id}
+                draggable
+                onDragStart={(e) => {
+                  // Dragging a selected row takes the whole selection along.
+                  listDrag.current = selectedIds.includes(el.id) ? selection.map((s) => s.id) : [el.id];
+                  e.dataTransfer.effectAllowed = "move";
+                  // Firefox only starts a drag with some data set.
+                  e.dataTransfer.setData("text/plain", "");
+                }}
+                onDragOver={(e) => {
+                  if (!listDrag.current) return;
+                  e.preventDefault();
+                  const box = e.currentTarget.getBoundingClientRect();
+                  const side = e.clientY < box.top + box.height / 2 ? "above" : "below";
+                  if (dropTarget?.id !== el.id || dropTarget.side !== side) setDropTarget({ id: el.id, side });
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dropTarget) dropOnRow(dropTarget.id, dropTarget.side);
+                  listDrag.current = null;
+                  setDropTarget(null);
+                }}
+                onDragEnd={() => {
+                  listDrag.current = null;
+                  setDropTarget(null);
+                }}
+                className={cn(
+                  "group relative",
+                  // The drop indicator: a line where the row would land.
+                  dropTarget?.id === el.id &&
+                    (dropTarget.side === "above"
+                      ? "before:absolute before:inset-x-0 before:-top-0.5 before:h-0.5 before:rounded before:bg-primary"
+                      : "after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:rounded after:bg-primary"),
+                )}
+              >
                 <button
                   type="button"
                   onClick={(e) => pick(el.id, e.shiftKey || e.metaKey || e.ctrlKey)}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                    "flex w-full cursor-grab items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm active:cursor-grabbing",
                     selectedIds.includes(el.id) ? "bg-accent" : "hover:bg-accent/50",
                   )}
                 >
@@ -698,7 +790,8 @@ export function LabelDesigner({
                   ) : (
                     <Square className="size-4 shrink-0 text-muted-foreground" />
                   )}
-                  <span className="truncate font-mono text-xs">{elementSummary(el)}</span>
+                  <span className="flex-1 truncate font-mono text-xs">{elementSummary(el)}</span>
+                  <GripVertical className="size-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
                 </button>
               </li>
             ))}
