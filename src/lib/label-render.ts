@@ -6,7 +6,12 @@
 // in mm and `width`/`height` carry the "mm" unit, so the file prints at true
 // size from any viewer and converts to PDF without scaling (label-export.ts).
 
-import { raw, toSVG } from "bwip-js";
+// `raw` must come from the default export: in bwip-js's ESM build (what the
+// browser bundle gets) the named `raw` is the encoder for the "raw"
+// symbology, not the matrix dump — only the CJS build used by tests aliases
+// it, so the named import passes `npm test` yet throws for every code when
+// printing.
+import bwipjs, { toSVG } from "bwip-js";
 import { toCsv } from "@/lib/bom-csv";
 import {
   SYMBOLOGIES,
@@ -126,7 +131,7 @@ export function renderCode(el: CodeElement, content: string, pixelMm?: number): 
   let sy = el.h / vh;
   if (twoD) sx = sy = Math.min(sx, sy);
   if (pixelMm) {
-    const [matrix] = raw(el.symbology, content, "");
+    const [matrix] = bwipjs.raw(el.symbology, content, "");
     const modules = twoD ? (matrix.pixx ?? 0) : (matrix.sbs ?? []).reduce((a, b) => a + b, 0);
     if (modules > 0) {
       const unitsPerModule = vw / modules;

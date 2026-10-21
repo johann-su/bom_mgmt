@@ -52,7 +52,9 @@ type Printer = {
   printheadPixels: number | null;
   density: { min: number; max: number; default: number };
   task: PrintTaskName | null;
-  // Offered when the model isn't recognised and `task` must be picked by hand.
+  // The protocol niimbluelib detected; picking the wrong task (B1 vs
+  // D110M_V4 on a D110_M) feeds a blank label, so the task stays switchable.
+  protocolVersion: number | null;
   taskNames: PrintTaskName[];
 };
 
@@ -140,6 +142,7 @@ export function NiimbotPanel({
           ? { min: meta.densityMin, max: meta.densityMax, default: meta.densityDefault }
           : { min: 1, max: 5, default: 3 },
         task: c.getPrintTaskType() ?? null,
+        protocolVersion: c.getPrinterInfo().protocolVersion ?? null,
         taskNames: lib.current.printTaskNames,
       });
       setDensity(meta?.densityDefault ?? 3);
@@ -184,6 +187,10 @@ export function NiimbotPanel({
     }
     stop.current = false;
     setProgress({ done: 0, total: pages.length });
+    // The client polls the printer every 2 s once connected; those packets
+    // landing between the image rows make the printer feed a blank label.
+    // niimblue pauses it for the whole job too.
+    c.stopHeartbeat();
     const task = c.protocol.newPrintTask(printer.task, {
       totalPages: pages.length * copies,
       density,
@@ -200,6 +207,10 @@ export function NiimbotPanel({
         toMonochrome(pixels.data);
         ctx.putImageData(pixels, 0, 0);
         const encoded = L.ImageEncoder.encodeCanvas(canvas, L.PageColorType.SingleColor, printer.direction);
+        // A page with no dots would just feed an empty label; stop instead.
+        if (encoded.rowsData.every((r) => r.dataType !== "pixels")) {
+          throw new Error("the rendered label came out empty");
+        }
         await task.printPage(encoded, copies);
         await task.waitForPageFinished();
         setProgress({ done: i + 1, total: pages.length });
@@ -213,6 +224,7 @@ export function NiimbotPanel({
       toast.error(`Printing failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       await task.printEnd().catch(() => {});
+      if (client.current === c) c.startHeartbeat();
       setProgress(null);
     }
   }
@@ -233,6 +245,7 @@ export function NiimbotPanel({
           <span className="ml-auto truncate text-sm text-muted-foreground">
             {printer.name}
             {printer.model && printer.model !== printer.name && ` · ${printer.model}`} · {printer.dpi} dpi
+            {printer.protocolVersion != null && ` · protocol v${printer.protocolVersion}`}
           </span>
         )}
       </div>
@@ -274,26 +287,24 @@ export function NiimbotPanel({
       ) : (
         <>
           <div className="flex flex-wrap items-end gap-3">
-            {!printer.task && (
-              <label className="grid gap-1 text-xs text-muted-foreground">
-                <span>Model family (not detected)</span>
-                <Select
-                  value=""
-                  onValueChange={(task) => setPrinter({ ...printer, task: task as PrintTaskName })}
-                >
-                  <SelectTrigger className="w-36">
-                    <SelectValue placeholder="Choose…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {printer.taskNames.map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {t}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </label>
-            )}
+            <label className="grid gap-1 text-xs text-muted-foreground">
+              <span>Print protocol{!printer.task && " (not detected)"}</span>
+              <Select
+                value={printer.task ?? ""}
+                onValueChange={(task) => setPrinter({ ...printer, task: task as PrintTaskName })}
+              >
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Choose…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {printer.taskNames.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
             <label className="grid w-24 gap-1 text-xs text-muted-foreground">
               <span>
                 Density ({printer.density.min}–{printer.density.max})
