@@ -1,0 +1,886 @@
+{
+ "parts": [
+  {
+   "id": "ball-bearing",
+   "name": "Ball bearing",
+   "short": "Bearing",
+   "group": "bearings",
+   "code": "Deep groove, open",
+   "note": "Front view. Outer race, balls, inner race, bore.",
+   "presets": [
+    [
+     "608",
+     "8 × 22 × 7 mm"
+    ],
+    [
+     "625",
+     "5 × 16 × 5 mm"
+    ],
+    [
+     "623",
+     "3 × 10 × 4 mm"
+    ],
+    [
+     "688",
+     "8 × 16 × 5 mm"
+    ],
+    [
+     "6000",
+     "10 × 26 × 8 mm"
+    ],
+    [
+     "6001",
+     "12 × 28 × 8 mm"
+    ],
+    [
+     "MR105",
+     "5 × 10 × 4 mm"
+    ],
+    [
+     "MR85",
+     "5 × 8 × 2.5 mm"
+    ]
+   ]
+  },
+  {
+   "id": "sealed-bearing",
+   "name": "Sealed bearing",
+   "short": "Bearing",
+   "group": "bearings",
+   "code": "2RS / ZZ",
+   "note": "Front view. Rubber seal or metal shield hides the balls.",
+   "presets": [
+    [
+     "608-2RS",
+     "8 × 22 × 7 mm"
+    ],
+    [
+     "625-2RS",
+     "5 × 16 × 5 mm"
+    ],
+    [
+     "623-ZZ",
+     "3 × 10 × 4 mm"
+    ],
+    [
+     "688-2RS",
+     "8 × 16 × 5 mm"
+    ],
+    [
+     "6001-2RS",
+     "12 × 28 × 8 mm"
+    ]
+   ]
+  },
+  {
+   "id": "flanged-bearing",
+   "name": "Flanged bearing",
+   "short": "Flg bearing",
+   "group": "bearings",
+   "code": "F-series",
+   "note": "Front view. The flange ring locates it in a pocket or idler stack.",
+   "presets": [
+    [
+     "F623",
+     "3 × 10 × 4 mm"
+    ],
+    [
+     "F625",
+     "5 × 16 × 5 mm"
+    ],
+    [
+     "F688",
+     "8 × 16 × 5 mm"
+    ],
+    [
+     "F695",
+     "5 × 13 × 4 mm"
+    ]
+   ]
+  },
+  {
+   "id": "thrust-bearing",
+   "name": "Thrust bearing",
+   "short": "Thrust",
+   "group": "bearings",
+   "code": "Axial",
+   "note": "Side view. Balls between two washers. Takes load along the shaft.",
+   "presets": [
+    [
+     "51100",
+     "10 × 24 × 9 mm"
+    ],
+    [
+     "51101",
+     "12 × 26 × 9 mm"
+    ],
+    [
+     "F8-16M",
+     "8 × 16 × 5 mm"
+    ]
+   ]
+  },
+  {
+   "id": "needle-bearing",
+   "name": "Needle bearing",
+   "short": "Needle",
+   "group": "bearings",
+   "code": "Drawn cup",
+   "note": "Front view. Thin shell, many needles, runs straight on the shaft.",
+   "presets": [
+    [
+     "HK0810",
+     "8 × 12 × 10 mm"
+    ],
+    [
+     "HK1012",
+     "10 × 14 × 12 mm"
+    ]
+   ]
+  },
+  {
+   "id": "bushing",
+   "name": "Plain bushing",
+   "short": "Bushing",
+   "group": "bearings",
+   "code": "Sleeve, flanged",
+   "note": "Side view. Bronze, PTFE or polymer sleeve, no rolling parts.",
+   "presets": [
+    [
+     "Ø8",
+     "8 × 10 × 10 mm"
+    ],
+    [
+     "Ø6",
+     "6 × 8 × 8 mm"
+    ],
+    [
+     "Ø10",
+     "10 × 12 × 10 mm"
+    ]
+   ]
+  },
+  {
+   "id": "pillow-block",
+   "name": "Pillow block",
+   "short": "Pillow blk",
+   "group": "bearings",
+   "code": "KP / UCP",
+   "note": "Bearing in a housing with a two-bolt base.",
+   "presets": [
+    [
+     "KP08",
+     "Ø8 shaft"
+    ],
+    [
+     "KP000",
+     "Ø10 shaft"
+    ],
+    [
+     "UCP204",
+     "Ø20 shaft"
+    ]
+   ]
+  },
+  {
+   "id": "flange-unit",
+   "name": "Flange unit",
+   "short": "Flg unit",
+   "group": "bearings",
+   "code": "KFL / UCFL",
+   "note": "Bearing in a two-bolt rhombic flange.",
+   "presets": [
+    [
+     "KFL08",
+     "Ø8 shaft"
+    ],
+    [
+     "KFL000",
+     "Ø10 shaft"
+    ]
+   ]
+  },
+  {
+   "id": "steel-ball",
+   "name": "Steel ball",
+   "short": "Ball",
+   "group": "bearings",
+   "code": "Loose balls",
+   "note": "Chrome steel or stainless balls for bearings and detents.",
+   "presets": [
+    [
+     "Ø6",
+     "Chrome steel"
+    ],
+    [
+     "Ø3",
+     "Chrome steel"
+    ],
+    [
+     "Ø6.35",
+     "¼″ chrome steel"
+    ]
+   ]
+  },
+  {
+   "id": "linear-bearing",
+   "name": "Linear bearing",
+   "short": "Linear brg",
+   "group": "linear",
+   "code": "LM…UU",
+   "note": "Side view. Recirculating balls, retaining-ring grooves at each end.",
+   "presets": [
+    [
+     "LM8UU",
+     "8 × 15 × 24 mm"
+    ],
+    [
+     "LM6UU",
+     "6 × 12 × 19 mm"
+    ],
+    [
+     "LM10UU",
+     "10 × 19 × 29 mm"
+    ],
+    [
+     "LM12UU",
+     "12 × 21 × 30 mm"
+    ],
+    [
+     "LM8LUU",
+     "8 × 15 × 45 mm"
+    ]
+   ]
+  },
+  {
+   "id": "linear-flanged",
+   "name": "Flanged linear bearing",
+   "short": "Linear flg",
+   "group": "linear",
+   "code": "LMF / LMK",
+   "note": "Side view. Round (LMF) or square (LMK) flange at one end.",
+   "presets": [
+    [
+     "LMF8UU",
+     "8 × 15 × 24 mm"
+    ],
+    [
+     "LMK8UU",
+     "8 × 15 × 24 mm"
+    ],
+    [
+     "LMF10UU",
+     "10 × 19 × 29 mm"
+    ]
+   ]
+  },
+  {
+   "id": "linear-guide",
+   "name": "Linear guide",
+   "short": "Rail",
+   "group": "linear",
+   "code": "MGN",
+   "note": "End view. Carriage riding on a profiled rail.",
+   "presets": [
+    [
+     "MGN12H",
+     "12 mm rail"
+    ],
+    [
+     "MGN9H",
+     "9 mm rail"
+    ],
+    [
+     "MGN15H",
+     "15 mm rail"
+    ],
+    [
+     "MGN12C",
+     "12 mm rail"
+    ]
+   ]
+  },
+  {
+   "id": "rod",
+   "name": "Linear rod",
+   "short": "Rod",
+   "group": "linear",
+   "code": "Ground, h6",
+   "note": "Hardened and ground shaft for linear bearings.",
+   "presets": [
+    [
+     "Ø8 × 300",
+     "h6, hardened"
+    ],
+    [
+     "Ø6 × 200",
+     "h6, hardened"
+    ],
+    [
+     "Ø10 × 400",
+     "h6, hardened"
+    ],
+    [
+     "Ø12 × 500",
+     "h6, hardened"
+    ]
+   ]
+  },
+  {
+   "id": "lead-screw",
+   "name": "Lead screw",
+   "short": "Lead screw",
+   "group": "linear",
+   "code": "Trapezoidal",
+   "note": "Flat-topped trapezoid thread. Lead is travel per turn.",
+   "presets": [
+    [
+     "T8 × 8",
+     "Ø8, 8 mm lead"
+    ],
+    [
+     "T8 × 2",
+     "Ø8, 2 mm lead"
+    ],
+    [
+     "TR10 × 2",
+     "Ø10, 2 mm lead"
+    ],
+    [
+     "TR12 × 3",
+     "Ø12, 3 mm lead"
+    ]
+   ]
+  },
+  {
+   "id": "lead-nut",
+   "name": "Lead screw nut",
+   "short": "Lead nut",
+   "group": "linear",
+   "code": "Flange nut",
+   "note": "Front view. Brass or POM nut with a four-hole flange.",
+   "presets": [
+    [
+     "T8 × 8",
+     "Brass flange"
+    ],
+    [
+     "T8 × 2",
+     "Brass flange"
+    ],
+    [
+     "T8 × 8 POM",
+     "Anti-backlash"
+    ]
+   ]
+  },
+  {
+   "id": "v-wheel",
+   "name": "V-slot wheel",
+   "short": "V-wheel",
+   "group": "linear",
+   "code": "V-groove",
+   "note": "Side view. V profile rides in the slot of V-slot extrusion.",
+   "presets": [
+    [
+     "Solid V",
+     "625-2RS inside"
+    ],
+    [
+     "Xtreme V",
+     "625-2RS inside"
+    ],
+    [
+     "Mini V",
+     "MR105 inside"
+    ]
+   ]
+  },
+  {
+   "id": "drag-chain",
+   "name": "Drag chain",
+   "short": "Drag chain",
+   "group": "linear",
+   "code": "Cable carrier",
+   "note": "Side view. Hinged links guide cables on moving axes.",
+   "presets": [
+    [
+     "10 × 15",
+     "Inner H × W, mm"
+    ],
+    [
+     "10 × 20",
+     "Inner H × W, mm"
+    ],
+    [
+     "15 × 30",
+     "Inner H × W, mm"
+    ]
+   ]
+  },
+  {
+   "id": "gt2-pulley",
+   "name": "Timing pulley",
+   "short": "Pulley",
+   "group": "drive",
+   "code": "GT2",
+   "note": "Front view. Toothed rim, hub, D-shaped bore.",
+   "presets": [
+    [
+     "20T",
+     "GT2, 5 mm bore"
+    ],
+    [
+     "16T",
+     "GT2, 5 mm bore"
+    ],
+    [
+     "20T",
+     "GT2, 8 mm bore"
+    ],
+    [
+     "60T",
+     "GT2, 8 mm bore"
+    ]
+   ]
+  },
+  {
+   "id": "idler",
+   "name": "Idler pulley",
+   "short": "Idler",
+   "group": "drive",
+   "code": "Smooth or toothed",
+   "note": "Side view. Flanges keep the belt on. Bearing inside.",
+   "presets": [
+    [
+     "Ø18 smooth",
+     "3 mm bore"
+    ],
+    [
+     "Ø18 smooth",
+     "5 mm bore"
+    ],
+    [
+     "20T idler",
+     "5 mm bore"
+    ]
+   ]
+  },
+  {
+   "id": "belt",
+   "name": "Timing belt",
+   "short": "Belt",
+   "group": "drive",
+   "code": "GT2",
+   "note": "Side view. Rounded teeth on a reinforced belt.",
+   "presets": [
+    [
+     "GT2 6 mm",
+     "2 mm pitch"
+    ],
+    [
+     "GT2 10 mm",
+     "2 mm pitch"
+    ],
+    [
+     "GT3 9 mm",
+     "3 mm pitch"
+    ]
+   ]
+  },
+  {
+   "id": "coupler",
+   "name": "Shaft coupler",
+   "short": "Coupler",
+   "group": "drive",
+   "code": "Beam / flexible",
+   "note": "Side view. Helical cut absorbs misalignment. Set screws at each end.",
+   "presets": [
+    [
+     "5 → 8",
+     "Ø19 × 25 mm"
+    ],
+    [
+     "5 → 5",
+     "Ø19 × 25 mm"
+    ],
+    [
+     "5 → 6.35",
+     "Ø19 × 25 mm"
+    ]
+   ]
+  },
+  {
+   "id": "collar",
+   "name": "Shaft collar",
+   "short": "Collar",
+   "group": "drive",
+   "code": "Set screw",
+   "note": "Front view. Locks a position on a shaft or lead screw.",
+   "presets": [
+    [
+     "Ø8",
+     "Set screw"
+    ],
+    [
+     "Ø5",
+     "Set screw"
+    ],
+    [
+     "Ø8",
+     "Clamp, split"
+    ]
+   ]
+  },
+  {
+   "id": "spur-gear",
+   "name": "Spur gear",
+   "short": "Gear",
+   "group": "drive",
+   "code": "Straight teeth",
+   "note": "Front view. Size by module and tooth count.",
+   "presets": [
+    [
+     "20T",
+     "Module 1"
+    ],
+    [
+     "40T",
+     "Module 0.5"
+    ],
+    [
+     "15T",
+     "Module 1.5"
+    ]
+   ]
+  },
+  {
+   "id": "bevel-gear",
+   "name": "Bevel gear",
+   "short": "Bevel",
+   "group": "drive",
+   "code": "Conical",
+   "note": "Side view. Turns drive through 90°.",
+   "presets": [
+    [
+     "20T",
+     "Module 1, 1:1"
+    ],
+    [
+     "30T / 15T",
+     "Module 1, 2:1"
+    ]
+   ]
+  },
+  {
+   "id": "worm-gear",
+   "name": "Worm gear",
+   "short": "Worm",
+   "group": "drive",
+   "code": "Worm + wheel",
+   "note": "High ratio, self-locking. Wheel above, worm below.",
+   "presets": [
+    [
+     "1:40",
+     "Module 0.5"
+    ],
+    [
+     "1:20",
+     "Module 1"
+    ]
+   ]
+  },
+  {
+   "id": "rack",
+   "name": "Gear rack",
+   "short": "Rack",
+   "group": "drive",
+   "code": "Straight",
+   "note": "Side view. Turns rotation into straight travel.",
+   "presets": [
+    [
+     "M1 × 200",
+     "Module 1"
+    ],
+    [
+     "M1.5 × 500",
+     "Module 1.5"
+    ]
+   ]
+  },
+  {
+   "id": "compression-spring",
+   "name": "Compression spring",
+   "short": "Comp spring",
+   "group": "springs",
+   "code": "Closed ends",
+   "note": "Pushes back when squeezed. Size: outside Ø × free length.",
+   "presets": [
+    [
+     "Ø6 × 20",
+     "0.6 mm wire"
+    ],
+    [
+     "Ø8 × 25",
+     "0.8 mm wire"
+    ],
+    [
+     "Ø10 × 30",
+     "1.0 mm wire"
+    ]
+   ]
+  },
+  {
+   "id": "extension-spring",
+   "name": "Extension spring",
+   "short": "Ext spring",
+   "group": "springs",
+   "code": "Hook ends",
+   "note": "Pulls back when stretched. Hooks at both ends.",
+   "presets": [
+    [
+     "Ø6 × 30",
+     "0.6 mm wire"
+    ],
+    [
+     "Ø8 × 40",
+     "0.8 mm wire"
+    ]
+   ]
+  },
+  {
+   "id": "torsion-spring",
+   "name": "Torsion spring",
+   "short": "Torsion",
+   "group": "springs",
+   "code": "Two legs",
+   "note": "Resists twisting. Legs set the working angle.",
+   "presets": [
+    [
+     "90°",
+     "0.8 mm wire"
+    ],
+    [
+     "180°",
+     "1.0 mm wire"
+    ]
+   ]
+  },
+  {
+   "id": "disc-spring",
+   "name": "Disc spring",
+   "short": "Disc spring",
+   "group": "springs",
+   "code": "DIN 2093",
+   "note": "Section view of a stacked pair. Belleville washers: shallow cones.",
+   "presets": [
+    [
+     "10 × 5.2 × 0.5",
+     "OD × ID × t"
+    ],
+    [
+     "20 × 10.2 × 1",
+     "OD × ID × t"
+    ]
+   ]
+  },
+  {
+   "id": "o-ring",
+   "name": "O-ring",
+   "short": "O-ring",
+   "group": "springs",
+   "code": "NBR / FKM",
+   "note": "Round-section seal. Size: inside Ø × cross-section.",
+   "presets": [
+    [
+     "10 × 1.5",
+     "NBR 70"
+    ],
+    [
+     "5 × 1",
+     "NBR 70"
+    ],
+    [
+     "20 × 2",
+     "NBR 70"
+    ],
+    [
+     "10 × 1.5",
+     "FKM, heat resistant"
+    ]
+   ]
+  },
+  {
+   "id": "shaft-seal",
+   "name": "Shaft seal",
+   "short": "Shaft seal",
+   "group": "springs",
+   "code": "Radial lip, TC",
+   "note": "Front view. Lip seal with a garter spring around the shaft.",
+   "presets": [
+    [
+     "8 × 16 × 5",
+     "TC, NBR"
+    ],
+    [
+     "10 × 20 × 7",
+     "TC, NBR"
+    ]
+   ]
+  },
+  {
+   "id": "disc-magnet",
+   "name": "Disc magnet",
+   "short": "Magnet",
+   "group": "magnets",
+   "code": "Axial",
+   "note": "Side view. Solid half is north, hollow half is south.",
+   "presets": [
+    [
+     "6 × 3",
+     "N52"
+    ],
+    [
+     "10 × 2",
+     "N52"
+    ],
+    [
+     "8 × 3",
+     "N35"
+    ],
+    [
+     "12 × 3",
+     "N52"
+    ]
+   ]
+  },
+  {
+   "id": "block-magnet",
+   "name": "Block magnet",
+   "short": "Block mag",
+   "group": "magnets",
+   "code": "Through thickness",
+   "note": "Side view. Solid half is north, hollow half is south.",
+   "presets": [
+    [
+     "10 × 5 × 2",
+     "N52"
+    ],
+    [
+     "20 × 10 × 3",
+     "N52"
+    ]
+   ]
+  },
+  {
+   "id": "ring-magnet",
+   "name": "Ring magnet",
+   "short": "Ring mag",
+   "group": "magnets",
+   "code": "Axial",
+   "note": "Front view. Solid half is north, hollow half is south.",
+   "presets": [
+    [
+     "10 × 4 × 3",
+     "N52, OD × ID × h"
+    ],
+    [
+     "12 × 6 × 3",
+     "N52, OD × ID × h"
+    ]
+   ]
+  },
+  {
+   "id": "csk-magnet",
+   "name": "Countersunk magnet",
+   "short": "Csk mag",
+   "group": "magnets",
+   "code": "Screw mount",
+   "note": "Front view. Countersunk hole for a flat-head screw.",
+   "presets": [
+    [
+     "12 × 4",
+     "M3 countersunk"
+    ],
+    [
+     "10 × 3",
+     "M3 countersunk"
+    ],
+    [
+     "20 × 4",
+     "M4 countersunk"
+    ]
+   ]
+  },
+  {
+   "id": "pot-magnet",
+   "name": "Pot magnet",
+   "short": "Pot mag",
+   "group": "magnets",
+   "code": "Threaded stud",
+   "note": "Side view. Magnet in a steel cup, threaded stud on top.",
+   "presets": [
+    [
+     "Ø16",
+     "M4 stud"
+    ],
+    [
+     "Ø20",
+     "M4 stud"
+    ],
+    [
+     "Ø25",
+     "M5 stud"
+    ]
+   ]
+  },
+  {
+   "id": "stepper",
+   "name": "Stepper motor",
+   "short": "Stepper",
+   "group": "motors",
+   "code": "NEMA",
+   "note": "Front view. Four mounting holes, centring boss, D-shaft.",
+   "presets": [
+    [
+     "NEMA 17",
+     "42 × 42 × 40 mm"
+    ],
+    [
+     "NEMA 17 pancake",
+     "42 × 42 × 23 mm"
+    ],
+    [
+     "NEMA 23",
+     "57 × 57 × 56 mm"
+    ],
+    [
+     "NEMA 14",
+     "35 × 35 × 28 mm"
+    ]
+   ]
+  },
+  {
+   "id": "servo",
+   "name": "Servo",
+   "short": "Servo",
+   "group": "motors",
+   "code": "Hobby servo",
+   "note": "Top view. Mounting ears, output spline off-centre.",
+   "presets": [
+    [
+     "SG90",
+     "9 g micro"
+    ],
+    [
+     "MG90S",
+     "9 g, metal gear"
+    ],
+    [
+     "MG996R",
+     "Standard size"
+    ]
+   ]
+  }
+ ]
+}

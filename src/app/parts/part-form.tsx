@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { Plus, Sparkles, X } from "lucide-react";
 import type { PartAttribute } from "@/lib/part-attributes";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LocationPicker } from "@/components/location-picker";
-import { createPart, updatePart } from "./actions";
+import { createPart, lookupOrderUrl, updatePart } from "./actions";
 import { uploadPartFiles } from "./upload";
 
 export type PartFormValues = {
@@ -33,6 +33,7 @@ export type PartFormValues = {
   mpn: string;
   unit: string;
   minStock: number | null;
+  orderUrl: string;
   attributes: PartAttribute[];
   notes: string;
 };
@@ -45,32 +46,68 @@ const EMPTY: PartFormValues = {
   mpn: "",
   unit: "pcs",
   minStock: null,
+  orderUrl: "",
   attributes: [],
   notes: "",
 };
 
+// Fields "Fill from link" may set; it only fills the ones still empty.
+const FILLABLE = ["name", "manufacturer", "mpn", "description"] as const;
+
 // Create and edit form. On create it also takes the first stock (location +
 // quantity) and files, so a newly bought part is put away in one go.
+// `prefill` seeds a new part (e.g. from a scanned bag label).
 export function PartForm({
   part,
+  prefill,
   categories,
   locations,
 }: {
   part?: PartFormValues;
+  prefill?: Partial<PartFormValues> & { initialQuantity?: number };
   categories: { id: string; name: string }[];
   locations: LocationOption[];
 }) {
   const router = useRouter();
-  const initial = part ?? EMPTY;
+  const formRef = useRef<HTMLFormElement>(null);
+  const initial = part ?? { ...EMPTY, ...prefill };
   const [attributes, setAttributes] = useState<PartAttribute[]>(
     initial.attributes.length ? initial.attributes : [{ key: "", value: "" }],
   );
   const [categoryId, setCategoryId] = useState(initial.categoryId ?? "none");
   const [locationId, setLocationId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [lookingUp, startLookup] = useTransition();
 
   function updateAttribute(index: number, patch: Partial<PartAttribute>) {
     setAttributes((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
+  }
+
+  // Reads the shop page behind the order link and fills empty fields from its
+  // product data; anything already typed is kept.
+  function fillFromLink() {
+    const form = formRef.current;
+    if (!form) return;
+    const field = (name: string) =>
+      form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+    startLookup(async () => {
+      const result = await lookupOrderUrl({ url: field("orderUrl")?.value ?? "" });
+      if (result.error || !result.product) {
+        toast.error(result.error ?? "No product data found");
+        return;
+      }
+      const filled: string[] = [];
+      for (const name of FILLABLE) {
+        const input = field(name);
+        const value = result.product[name];
+        if (input && value && !input.value.trim()) {
+          input.value = value;
+          filled.push(name === "mpn" ? "MPN" : name);
+        }
+      }
+      if (filled.length) toast.success(`Filled ${filled.join(", ")}`);
+      else toast.info("Nothing to fill — those fields are already set");
+    });
   }
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -84,6 +121,7 @@ export function PartForm({
       mpn: form.get("mpn"),
       unit: form.get("unit"),
       minStock: form.get("minStock"),
+      orderUrl: form.get("orderUrl"),
       notes: form.get("notes"),
       attributes,
     };
@@ -124,7 +162,7 @@ export function PartForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-6">
+    <form ref={formRef} onSubmit={submit} className="grid gap-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Part</CardTitle>
@@ -184,8 +222,33 @@ export function PartForm({
             <Input id="mpn" name="mpn" defaultValue={initial.mpn} className="font-mono" />
           </div>
           <div className="grid gap-2 sm:col-span-2">
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" name="description" defaultValue={initial.description} rows={3} />
+            <Label htmlFor="orderUrl">Order link</Label>
+            <div className="flex gap-2">
+              <Input
+                id="orderUrl"
+                name="orderUrl"
+                type="text"
+                inputMode="url"
+                defaultValue={initial.orderUrl}
+                placeholder="https://… (optional) — where to reorder when it runs low"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={fillFromLink}
+                disabled={lookingUp}
+                title="Fill empty fields from the shop's product page"
+              >
+                <Sparkles className="size-4" />
+                {lookingUp ? "Reading…" : "Fill from link"}
+              </Button>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label htmlFor="description">
+              Description <span className="font-normal text-muted-foreground">(Markdown)</span>
+            </Label>
+            <Textarea id="description" name="description" defaultValue={initial.description} rows={6} />
           </div>
         </CardContent>
       </Card>
@@ -257,6 +320,7 @@ export function PartForm({
                 type="number"
                 min={0}
                 step={1}
+                defaultValue={prefill?.initialQuantity ?? ""}
                 disabled={!locationId}
               />
             </div>

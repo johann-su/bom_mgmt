@@ -13,7 +13,10 @@ import {
   fillVariables,
   pageSize,
   placeLabels,
+  type BoxStyle,
   type CodeElement,
+  type GraphicElement,
+  type LabelElement,
   type LabelTemplate,
   type LabelVariables,
   type TextElement,
@@ -47,9 +50,41 @@ export function fittedFontSize(el: TextElement, lines: string[]): number {
   return Math.min(size, byWidth, byHeight);
 }
 
-function renderText(el: TextElement, vars: Partial<LabelVariables>): string {
-  const lines = fillVariables(el.text, vars).split("\n");
+// Gap between a text's styled box (fill or border) and the text inside, in mm.
+const TEXT_PADDING = 0.5;
+
+type Area = { x: number; y: number; w: number; h: number };
+
+/**
+ * A filled and/or outlined rounded rectangle. The border is drawn inside the
+ * area (inset by half its width), so a frame never grows past its box.
+ */
+function renderBox(area: Area, style: Partial<BoxStyle>): string {
+  const sw = style.strokeWidth ?? 0;
+  if (!style.fill && sw <= 0) return "";
+  const inset = sw / 2;
+  return (
+    `<rect x="${n(area.x + inset)}" y="${n(area.y + inset)}" width="${n(Math.max(0, area.w - sw))}" ` +
+    `height="${n(Math.max(0, area.h - sw))}" rx="${n(style.radius ?? 0)}" fill="${style.fill ?? "none"}"` +
+    (sw > 0 ? ` stroke="${style.stroke ?? "#000"}" stroke-width="${n(sw)}"` : ` stroke="none"`) +
+    `/>`
+  );
+}
+
+function renderText(styled: TextElement, vars: Partial<LabelVariables>): string {
+  const lines = fillVariables(styled.text, vars).split("\n");
+  // An empty text hides its box too, so a blank {{name}} leaves no empty badge.
   if (lines.every((l) => !l.trim())) return "";
+  const background = renderBox(styled, styled);
+  // A styled box keeps the text off its edges; plain text uses the whole box.
+  const pad = background ? (styled.strokeWidth ?? 0) + TEXT_PADDING : 0;
+  const el = {
+    ...styled,
+    x: styled.x + pad,
+    y: styled.y + pad,
+    w: Math.max(0.1, styled.w - 2 * pad),
+    h: Math.max(0.1, styled.h - 2 * pad),
+  };
   const size = fittedFontSize(el, lines);
   // Centre the block of lines vertically in the box.
   const top = el.y + (el.h - lines.length * size * LINE_HEIGHT) / 2;
@@ -59,7 +94,7 @@ function renderText(el: TextElement, vars: Partial<LabelVariables>): string {
     `font-size="${n(size)}"`,
     el.bold ? `font-weight="bold"` : "",
     `text-anchor="${el.align}"`,
-    `fill="#000"`,
+    `fill="${el.color ?? "#000"}"`,
   ].filter(Boolean);
   const tspans = lines
     .map(
@@ -67,7 +102,7 @@ function renderText(el: TextElement, vars: Partial<LabelVariables>): string {
         `<tspan x="${n(x)}" y="${n(top + (i * LINE_HEIGHT + ASCENT) * size)}">${escapeXml(line)}</tspan>`,
     )
     .join("");
-  return `<text ${attrs.join(" ")} xml:space="preserve">${tspans}</text>`;
+  return `${background}<text ${attrs.join(" ")} xml:space="preserve">${tspans}</text>`;
 }
 
 /**
@@ -109,9 +144,31 @@ export function renderCode(el: CodeElement, content: string, pixelMm?: number): 
   return `<g transform="translate(${n(x)} ${n(y)}) scale(${+sx.toFixed(6)} ${+sy.toFixed(6)})">${inner}</g>`;
 }
 
+/**
+ * Scales a graphic's (already sanitised) drawing from its viewBox into the
+ * box, centred and keeping proportions unless `stretch`, like a 2D code.
+ */
+export function renderGraphic(el: GraphicElement): string {
+  const [minX, minY, vw, vh] = el.viewBox;
+  let sx = el.w / vw;
+  let sy = el.h / vh;
+  if (!el.stretch) sx = sy = Math.min(sx, sy);
+  const x = el.x + (el.w - vw * sx) / 2 - minX * sx;
+  const y = el.y + (el.h - vh * sy) / 2 - minY * sy;
+  // color: icons drawn in currentColor (most icon sets) print black, not in
+  // whatever text colour the page around the preview happens to have.
+  return `<g transform="translate(${n(x)} ${n(y)}) scale(${+sx.toFixed(6)} ${+sy.toFixed(6)})" color="#000">${el.markup}</g>`;
+}
+
 export type RenderOptions = { pixelMm?: number };
 
 export type RenderedLabel = { body: string; errors: string[] };
+
+/** Wraps an element's markup to turn it about its box's centre. */
+function rotated(el: { x: number; y: number; w: number; h: number; rotation?: number }, svg: string) {
+  if (!el.rotation || !svg) return svg;
+  return `<g transform="rotate(${n(el.rotation)} ${n(el.x + el.w / 2)} ${n(el.y + el.h / 2)})">${svg}</g>`;
+}
 
 /**
  * One label's elements in label coordinates (origin top-left, mm). Contents
@@ -124,16 +181,11 @@ export function renderLabelBody(
   options: RenderOptions = {},
 ): RenderedLabel {
   const errors: string[] = [];
-  const parts = template.elements.map((el) => {
+  const parts = template.elements.map((el) => rotated(el, renderElement(el)));
+  function renderElement(el: LabelElement): string {
     if (el.kind === "text") return renderText(el, vars);
-    if (el.kind === "frame") {
-      const inset = el.strokeWidth / 2;
-      return (
-        `<rect x="${n(el.x + inset)}" y="${n(el.y + inset)}" width="${n(Math.max(0, el.w - el.strokeWidth))}" ` +
-        `height="${n(Math.max(0, el.h - el.strokeWidth))}" rx="${n(el.radius)}" fill="none" stroke="#000" ` +
-        `stroke-width="${n(el.strokeWidth)}"/>`
-      );
-    }
+    if (el.kind === "frame") return renderBox(el, el);
+    if (el.kind === "graphic") return renderGraphic(el);
     const content = fillVariables(el.text, vars);
     if (!content) return "";
     try {
@@ -143,7 +195,7 @@ export function renderLabelBody(
       errors.push(`${SYMBOLOGIES[el.symbology].name} can't encode "${content}"${reason ? `: ${reason}` : ""}`);
       return "";
     }
-  });
+  }
   return { body: parts.filter(Boolean).join(""), errors };
 }
 

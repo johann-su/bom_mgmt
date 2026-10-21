@@ -9,8 +9,26 @@ import { PartForm } from "../part-form";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "New part" };
 
-export default async function NewPartPage() {
+type SearchParams = Promise<{
+  name?: string;
+  mpn?: string;
+  manufacturer?: string;
+  orderUrl?: string;
+  qty?: string;
+}>;
+
+// Query parameters prefill the form — the scan-label dialog links here for a
+// part that doesn't exist yet.
+export default async function NewPartPage({ searchParams }: { searchParams: SearchParams }) {
   await requireSession();
+  const { name, mpn, manufacturer, orderUrl, qty } = await searchParams;
+  const prefill = {
+    name: name ?? mpn ?? "",
+    mpn: mpn ?? "",
+    manufacturer: manufacturer ?? "",
+    orderUrl: orderUrl ?? "",
+    initialQuantity: qty && /^\d+$/.test(qty) ? Number(qty) : undefined,
+  };
   const [cats, locations] = await Promise.all([
     db.select({ id: categories.id, name: categories.name }).from(categories).orderBy(asc(categories.name)),
     loadLocationOptions(),
@@ -18,7 +36,7 @@ export default async function NewPartPage() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-3xl font-bold tracking-tight mb-6">New part</h1>
-      <PartForm categories={cats} locations={locations} />
+      <PartForm prefill={prefill} categories={cats} locations={locations} />
     </div>
   );
 }

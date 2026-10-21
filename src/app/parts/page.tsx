@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { asc } from "drizzle-orm";
-import { Package, PackagePlus } from "lucide-react";
+import { FileUp, Package, PackagePlus } from "lucide-react";
 import { db } from "@/db";
 import { categories } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -11,6 +11,7 @@ import { loadLocationOptions } from "@/lib/locations";
 import { Button } from "@/components/ui/button";
 import { PartsFilters } from "./parts-filters";
 import { PartsTable } from "./parts-table";
+import { ScanLabelDialog } from "./scan-label-dialog";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Parts" };
@@ -40,12 +41,21 @@ export default async function PartsPage({ searchParams }: { searchParams: Search
             {filtered ? " match" + (rows.length === 1 ? "es" : "") : " in the inventory"}.
           </p>
         </div>
-        <Button asChild>
-          <Link href="/parts/new">
-            <PackagePlus className="size-4" />
-            New part
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <ScanLabelDialog locations={locations} />
+          <Button variant="outline" asChild>
+            <Link href="/parts/import">
+              <FileUp className="size-4" />
+              Import CSV
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href="/parts/new">
+              <PackagePlus className="size-4" />
+              New part
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <PartsFilters categories={cats} q={q} category={category} low={low === "1"} />

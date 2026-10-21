@@ -5,6 +5,7 @@ import {
   SHEET_PRESETS,
   builtInIndex,
   fillVariables,
+  graphicBox,
   locationVariables,
   parseTemplate,
   placeLabels,
@@ -87,6 +88,78 @@ test("parseTemplate drops unknown fields and defaults the layout to one label pe
   assert.deepEqual(parsed.layout, { kind: "single" });
   assert.equal("evil" in parsed, false);
   assert.equal("onclick" in parsed.elements[0], false);
+});
+
+test("parseTemplate normalises rotation to [0, 360) and leaves it out when unrotated", () => {
+  const frame = { kind: "frame", x: 0, y: 0, w: 10, h: 5 };
+  const parsed = parseTemplate({
+    width: 40,
+    height: 20,
+    elements: [{ ...frame, rotation: -90 }, { ...frame, rotation: 360 }, { ...frame, rotation: "45" }],
+  });
+  assert.ok(!("error" in parsed));
+  assert.equal(parsed.elements[0].rotation, 270);
+  // A full turn, or a non-number, is no rotation at all — and isn't stored.
+  assert.equal("rotation" in parsed.elements[1], false);
+  assert.equal("rotation" in parsed.elements[2], false);
+});
+
+test("box styles: only #rrggbb colours get through (they land in SVG attributes)", () => {
+  const parsed = parseTemplate({
+    width: 40,
+    height: 20,
+    elements: [
+      { kind: "frame", x: 0, y: 0, w: 40, h: 20, fill: "#FFAA00", stroke: 'red" onload="x', strokeWidth: 0 },
+      { kind: "text", x: 0, y: 0, w: 40, h: 8, fontSize: 8, text: "", color: "#ffffff", fill: "#000000", radius: 1 },
+      { kind: "text", x: 0, y: 8, w: 40, h: 8, fontSize: 8, text: "" },
+    ],
+  });
+  assert.ok(!("error" in parsed));
+  const [frame, badge, plain] = parsed.elements;
+  // Lower-cased; the injection attempt is dropped; a 0 border is allowed (fill only).
+  assert.equal(frame.kind === "frame" && frame.fill, "#ffaa00");
+  assert.equal("stroke" in frame, false);
+  assert.equal(frame.kind === "frame" && frame.strokeWidth, 0);
+  assert.deepEqual(badge.kind === "text" && [badge.color, badge.fill, badge.radius], ["#ffffff", "#000000", 1]);
+  // Unstyled text stays unstyled — no style keys appear.
+  assert.deepEqual(Object.keys(plain).filter((k) => ["color", "fill", "stroke", "strokeWidth", "radius"].includes(k)), []);
+});
+
+test("a frame without style fields keeps the old defaults (0.3 mm black line, square corners)", () => {
+  const parsed = parseTemplate({ width: 40, height: 20, elements: [{ kind: "frame", x: 0, y: 0, w: 40, h: 20 }] });
+  assert.ok(!("error" in parsed));
+  assert.deepEqual(
+    parsed.elements[0].kind === "frame" && [parsed.elements[0].strokeWidth, parsed.elements[0].radius],
+    [0.3, 0],
+  );
+});
+
+test("graphics: stored markup is re-sanitised, and a broken or oversized one is rejected", () => {
+  const graphic = { kind: "graphic", x: 0, y: 0, w: 10, h: 10, viewBox: [0, 0, 24, 24] };
+  const parsed = parseTemplate({
+    width: 40,
+    height: 20,
+    elements: [{ ...graphic, markup: '<path d="M0 0" onload="alert(1)"/><script>x</script>', name: "logo" }],
+  });
+  assert.ok(!("error" in parsed));
+  const el = parsed.elements[0];
+  assert.deepEqual(el.kind === "graphic" && [el.markup, el.stretch, el.name], ['<path d="M0 0"/>', false, "logo"]);
+
+  const bad = (over: object) => "error" in parseTemplate({ width: 40, height: 20, elements: [{ ...graphic, markup: "<rect/>", ...over }] });
+  assert.ok(bad({ markup: "<script>x</script>" }), "nothing drawable");
+  assert.ok(bad({ viewBox: [0, 0, 0, 24] }), "zero-size viewBox");
+  assert.ok(bad({ viewBox: "0 0 24 24" }), "viewBox must be numbers");
+  // Many big graphics together would overflow the 1 MB server-action limit.
+  // ~130 kB each (just under the per-graphic cap), five of them ≈ 650 kB.
+  const big = Array(3).fill(`<path d="M${"0 ".repeat(22_000)}"/>`).join("");
+  assert.ok("error" in parseTemplate({ width: 40, height: 20, elements: Array(5).fill({ ...graphic, markup: big }) }));
+});
+
+test("graphicBox centres a new graphic as large as fits, keeping its shape", () => {
+  // Wide graphic on a 40×20 label: width-limited to 38 mm.
+  assert.deepEqual(graphicBox({ width: 40, height: 20 }, [0, 0, 100, 25]), { x: 1, y: 5.25, w: 38, h: 9.5 });
+  // Square graphic: height-limited.
+  assert.deepEqual(graphicBox({ width: 40, height: 20 }, [0, 0, 24, 24]), { x: 11, y: 1, w: 18, h: 18 });
 });
 
 test("a sheet grid wider than the paper is rejected — the last column would print off the edge", () => {

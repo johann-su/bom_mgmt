@@ -161,6 +161,9 @@ export const parts = pgTable(
     unit: text("unit").notNull().default("pcs"),
     // Low-stock threshold across all locations; null = not tracked.
     minStock: integer("min_stock"),
+    // Where to reorder the part (a shop/supplier page); "" = none. Shown as
+    // an "Order" link, prominently once stock runs low.
+    orderUrl: text("order_url").notNull().default(""),
     attributes: jsonb("attributes").$type<PartAttribute[]>().notNull().default([]),
     notes: text("notes").notNull().default(""),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),

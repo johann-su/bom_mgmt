@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { count } from "drizzle-orm";
-import { ClipboardList, MapPin, Package, TriangleAlert } from "lucide-react";
+import { ClipboardList, MapPin, Package, ShoppingCart, TriangleAlert } from "lucide-react";
 import { db } from "@/db";
 import { boms, locations, parts } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -73,9 +73,23 @@ export default async function DashboardPage() {
                     <Link href={`/parts/${p.id}`} className="truncate hover:underline">
                       {p.name}
                     </Link>
-                    <span className="shrink-0 tabular-nums text-destructive">
-                      {formatQuantity(p.total, p.unit)}
-                      <span className="text-muted-foreground"> / {p.minStock}</span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="tabular-nums text-destructive">
+                        {formatQuantity(p.total, p.unit)}
+                        <span className="text-muted-foreground"> / {p.minStock}</span>
+                      </span>
+                      {p.orderUrl && (
+                        <a
+                          href={p.orderUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Order ${p.name}`}
+                          title="Order"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <ShoppingCart className="size-4" />
+                        </a>
+                      )}
                     </span>
                   </li>
                 ))}

@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bomItems, files, parts } from "@/db/schema";
 import { getSession } from "@/lib/auth";
-import { parsePartInput } from "@/lib/part-input";
+import { parseOrderUrl, parsePartInput } from "@/lib/part-input";
+import { fetchProductInfo } from "@/lib/product-fetch";
+import type { ProductInfo } from "@/lib/product-page";
 import { parseQuantity } from "@/lib/stock";
 import { applyDelta, locationCodes, recordMovement } from "@/lib/movements";
 import { blobStore } from "@/lib/storage";
@@ -69,6 +71,55 @@ export async function createPart(
 
   revalidate();
   return { id };
+}
+
+/**
+ * Reads the product data (schema.org JSON-LD / OpenGraph) from an order link
+ * so the part form can prefill itself. Nothing is stored.
+ */
+export async function lookupOrderUrl(input: {
+  url: string;
+}): Promise<Result & { product?: ProductInfo }> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const url = parseOrderUrl(input.url);
+  if (!url) return { error: "Enter an http(s) order link first" };
+  const result = await fetchProductInfo(url);
+  if ("error" in result) {
+    logger.info({ url, error: result.error }, "Order link lookup failed");
+    return result;
+  }
+  return result;
+}
+
+/**
+ * Finds the part a scanned bag label is for: by MPN, else by the
+ * distributor's part number appearing as a path/query segment of a part's
+ * order link (an LCSC "C2040" in …/product-detail/C2040.html).
+ */
+export async function findPartByLabel(input: {
+  mpn: string;
+  supplierPartNumber: string;
+}): Promise<Result & { part?: { id: string; name: string; unit: string; mpn: string } }> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const columns = { id: true, name: true, unit: true, mpn: true } as const;
+  const mpn = input.mpn.trim();
+  if (mpn) {
+    const part = await db.query.parts.findFirst({
+      where: sql`lower(${parts.mpn}) = lower(${mpn})`,
+      columns,
+    });
+    if (part) return { part };
+  }
+  const spn = input.supplierPartNumber.trim();
+  // Only plain part numbers go into the regex below.
+  if (/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(spn)) {
+    const part = await db.query.parts.findFirst({
+      where: sql`${parts.orderUrl} ~* ${`[/=]${spn}([./?&#]|$)`}`,
+      columns,
+    });
+    if (part) return { part };
+  }
+  return {};
 }
 
 export async function updatePart(raw: Record<string, unknown> & { id: string }): Promise<Result> {

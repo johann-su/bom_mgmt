@@ -1,0 +1,525 @@
+{
+ "families": [
+  {
+   "id": "dupont",
+   "name": "Dupont",
+   "spec": "2.54 mm",
+   "short": "Dupont",
+   "pins": 3,
+   "group": "signal",
+   "note": "Square single-row housings, often ganged. Mates with standard pin headers."
+  },
+  {
+   "id": "jst-xh",
+   "name": "JST XH",
+   "spec": "2.50 mm",
+   "short": "JST-XH",
+   "pins": 3,
+   "group": "signal",
+   "note": "The usual balance-lead and 3D printer connector. Friction fit, ribs on top."
+  },
+  {
+   "id": "jst-ph",
+   "name": "JST PH",
+   "spec": "2.00 mm",
+   "short": "JST-PH",
+   "pins": 3,
+   "group": "signal",
+   "note": "Small LiPo cells, Grove (as HY 2.0) and many dev boards."
+  },
+  {
+   "id": "jst-zh",
+   "name": "JST ZH",
+   "spec": "1.50 mm",
+   "short": "JST-ZH",
+   "pins": 3,
+   "group": "signal",
+   "note": "Compact wire-to-board. Central ramp on top of the housing."
+  },
+  {
+   "id": "jst-sh",
+   "name": "JST SH",
+   "spec": "1.00 mm",
+   "short": "JST-SH",
+   "pins": 4,
+   "group": "signal",
+   "note": "Qwiic and STEMMA QT use the 4-pin SH. Friction bumps at each end."
+  },
+  {
+   "id": "jst-gh",
+   "name": "JST GH",
+   "spec": "1.25 mm",
+   "short": "JST-GH",
+   "pins": 4,
+   "group": "signal",
+   "note": "Positive latch on top. Pixhawk and drone peripherals."
+  },
+  {
+   "id": "jst-vh",
+   "name": "JST VH",
+   "spec": "3.96 mm",
+   "short": "JST-VH",
+   "pins": 3,
+   "group": "signal",
+   "note": "Larger pitch for power: heaters, mains-side boards, appliances."
+  },
+  {
+   "id": "kk254",
+   "name": "Molex KK 254",
+   "spec": "2.54 mm",
+   "short": "KK 254",
+   "pins": 3,
+   "group": "signal",
+   "note": "Friction ramp lock on one side. PC fans, older PC internals."
+  },
+  {
+   "id": "picoblade",
+   "name": "Molex PicoBlade",
+   "spec": "1.25 mm",
+   "short": "PicoBlade",
+   "pins": 4,
+   "group": "signal",
+   "note": "Thin housing with a lip along the top. Cameras, small modules."
+  },
+  {
+   "id": "microfit",
+   "name": "Molex Micro-Fit 3.0",
+   "spec": "3.00 mm",
+   "short": "Micro-Fit",
+   "pins": 4,
+   "group": "signal",
+   "note": "Dual row, keyed square and D cavities. GPU and board power."
+  },
+  {
+   "id": "minifit",
+   "name": "Molex Mini-Fit Jr",
+   "spec": "4.20 mm",
+   "short": "Mini-Fit",
+   "pins": 4,
+   "group": "signal",
+   "note": "Larger dual-row power: ATX, EPS, PCIe cables."
+  },
+  {
+   "id": "idc",
+   "name": "IDC box header",
+   "spec": "2.54 mm",
+   "short": "IDC",
+   "pins": 10,
+   "group": "signal",
+   "note": "Shrouded dual row with a key slot. Ribbon cables, JTAG, SWD."
+  },
+  {
+   "id": "jst-sm",
+   "name": "JST SM",
+   "spec": "2.50 mm",
+   "short": "JST-SM",
+   "pins": 3,
+   "group": "signal",
+   "note": "Wire-to-wire with a latch arm. LED strips."
+  },
+  {
+   "id": "xt30",
+   "name": "XT30",
+   "spec": "30 A",
+   "short": "XT30",
+   "pins": 2,
+   "group": "power",
+   "note": "Small Amass power plug. Chamfered side shows polarity."
+  },
+  {
+   "id": "xt60",
+   "name": "XT60",
+   "spec": "60 A",
+   "short": "XT60",
+   "pins": 2,
+   "group": "power",
+   "note": "Standard battery plug for drones, RC and e-bikes."
+  },
+  {
+   "id": "xt90",
+   "name": "XT90",
+   "spec": "90 A",
+   "short": "XT90",
+   "pins": 2,
+   "group": "power",
+   "note": "Large Amass plug. The S version adds an anti-spark resistor."
+  },
+  {
+   "id": "tplug",
+   "name": "T-plug",
+   "spec": "Deans",
+   "short": "T-plug",
+   "pins": 2,
+   "group": "power",
+   "note": "Two flat blades at right angles, forming a T."
+  },
+  {
+   "id": "rcy",
+   "name": "JST RCY",
+   "spec": "2.50 mm",
+   "short": "JST-RCY",
+   "pins": 2,
+   "group": "power",
+   "note": "Red 2-pin plug for small batteries and BECs. Latch ramp on top."
+  },
+  {
+   "id": "powerpole",
+   "name": "Anderson Powerpole",
+   "spec": "15–45 A",
+   "short": "Powerpole",
+   "pins": 2,
+   "group": "power",
+   "note": "Genderless, dovetailed housings. Ham radio and 12 V gear."
+  },
+  {
+   "id": "barrel",
+   "name": "DC barrel",
+   "spec": "5.5 / 2.1",
+   "short": "DC barrel",
+   "pins": 2,
+   "group": "power",
+   "note": "Coaxial power. Outer sleeve, insulator, centre pin hole."
+  },
+  {
+   "id": "terminal",
+   "name": "Screw terminal",
+   "spec": "5.08 mm",
+   "short": "Terminal",
+   "pins": 3,
+   "group": "power",
+   "note": "Clamp screws on top, square wire entries below."
+  },
+  {
+   "id": "usb-c",
+   "name": "USB-C",
+   "spec": "24 pin",
+   "short": "USB-C",
+   "pins": null,
+   "group": "usb",
+   "note": "Reversible. Stadium shell with a centre tongue."
+  },
+  {
+   "id": "micro-usb",
+   "name": "Micro-USB",
+   "spec": "Type B",
+   "short": "Micro-B",
+   "pins": null,
+   "group": "usb",
+   "note": "Trapezoid shell, tongue along the wide side."
+  },
+  {
+   "id": "usb-a",
+   "name": "USB-A",
+   "spec": "Type A",
+   "short": "USB-A",
+   "pins": null,
+   "group": "usb",
+   "note": "Rectangular shell, tongue on one half."
+  },
+  {
+   "id": "sma",
+   "name": "SMA",
+   "spec": "50 Ω",
+   "short": "SMA",
+   "pins": null,
+   "group": "rf",
+   "var": "panel",
+   "note": "Threaded coax for antennas and test gear. Hex body, PTFE insulator."
+  },
+  {
+   "id": "ufl",
+   "name": "U.FL",
+   "spec": "IPEX MHF1",
+   "short": "U.FL",
+   "pins": null,
+   "group": "rf",
+   "var": null,
+   "note": "Tiny snap-on coax for Wi-Fi and GPS modules. Board side, top view."
+  },
+  {
+   "id": "bnc",
+   "name": "BNC",
+   "spec": "50 Ω",
+   "short": "BNC",
+   "pins": null,
+   "group": "rf",
+   "var": "panel",
+   "note": "Bayonet coax. Two lugs lock with a quarter turn. Scopes and video."
+  },
+  {
+   "id": "rj45",
+   "name": "RJ45 / RJ11",
+   "spec": "8P8C",
+   "short": "RJ45",
+   "pins": 8,
+   "group": "data",
+   "var": "jack",
+   "note": "Modular jack. Latch notch at the bottom. RJ11 is the 6-wide version."
+  },
+  {
+   "id": "dsub",
+   "name": "D-sub",
+   "spec": "DE-9",
+   "short": "D-sub",
+   "pins": 9,
+   "group": "data",
+   "var": "panel",
+   "note": "Trapezoid shell. Serial ports, CAN, joysticks. Male face shown."
+  },
+  {
+   "id": "hdmi",
+   "name": "HDMI",
+   "spec": "Type A",
+   "short": "HDMI",
+   "pins": null,
+   "group": "data",
+   "var": "jack",
+   "note": "Wide shell with chamfered lower corners, tongue in the middle."
+  },
+  {
+   "id": "ffc",
+   "name": "FFC / FPC",
+   "spec": "0.5 mm",
+   "short": "FFC",
+   "pins": 10,
+   "group": "data",
+   "var": null,
+   "note": "Flat flex cable end with exposed contacts. Displays and cameras."
+  },
+  {
+   "id": "trs",
+   "name": "3.5 mm jack",
+   "spec": "TRS",
+   "short": "3.5 mm",
+   "pins": null,
+   "group": "data",
+   "var": "housing-m",
+   "note": "Audio plug: tip, ring and sleeve split by insulating bands."
+  },
+  {
+   "id": "mr30",
+   "name": "MR30",
+   "spec": "30 A",
+   "short": "MR30",
+   "pins": 3,
+   "group": "power",
+   "var": "housing-f",
+   "note": "Three-pin Amass plug for brushless motors."
+  },
+  {
+   "id": "ec",
+   "name": "EC3 / EC5",
+   "spec": "3.5 / 5 mm",
+   "short": "EC5",
+   "pins": 2,
+   "group": "power",
+   "var": "housing-m",
+   "note": "E-flite bullet plugs. One round and one square housing."
+  },
+  {
+   "id": "m12",
+   "name": "M8 / M12",
+   "spec": "A-coded",
+   "short": "M12",
+   "pins": 4,
+   "group": "industrial",
+   "var": "panel",
+   "note": "Sensor connector. Knurled nut, keyed insert, pins on a circle."
+  },
+  {
+   "id": "gx16",
+   "name": "GX16 aviation",
+   "spec": "16 mm",
+   "short": "GX16",
+   "pins": 4,
+   "group": "industrial",
+   "var": "panel",
+   "note": "Threaded round connector. Key tab on the shell, pins on a circle."
+  },
+  {
+   "id": "banana",
+   "name": "Banana",
+   "spec": "4 mm",
+   "short": "Banana",
+   "pins": null,
+   "group": "industrial",
+   "var": null,
+   "note": "Sprung lantern pin for bench supplies and meters."
+  },
+  {
+   "id": "wago",
+   "name": "Wago lever nut",
+   "spec": "221",
+   "short": "Wago",
+   "pins": 3,
+   "group": "industrial",
+   "var": null,
+   "note": "Lever splice connector. One lever and one entry per wire."
+  },
+  {
+   "id": "jst-eh",
+   "name": "JST EH",
+   "spec": "2.50 mm",
+   "short": "JST-EH",
+   "pins": 3,
+   "group": "signal",
+   "var": "housing-f",
+   "note": "Like XH but with a closed lock tab on top."
+  },
+  {
+   "id": "ring",
+   "name": "Ring terminal",
+   "spec": "M3–M10 stud",
+   "short": "Ring",
+   "pins": null,
+   "group": "terminal",
+   "var": null,
+   "note": "Closed eye. Cannot fall off the stud."
+  },
+  {
+   "id": "fork",
+   "name": "Fork terminal",
+   "spec": "M3–M6 stud",
+   "short": "Fork",
+   "pins": null,
+   "group": "terminal",
+   "var": null,
+   "note": "Open slot. Slides under a loosened screw."
+  },
+  {
+   "id": "spade",
+   "name": "Spade (female)",
+   "spec": "6.3 mm",
+   "short": "Spade F",
+   "pins": null,
+   "group": "terminal",
+   "var": null,
+   "note": "Quick-disconnect receptacle with rolled edges. Fits Faston blades."
+  },
+  {
+   "id": "blade",
+   "name": "Blade (Faston)",
+   "spec": "6.3 mm",
+   "short": "Blade M",
+   "pins": null,
+   "group": "terminal",
+   "var": null,
+   "note": "Male tab with a detent hole. Also 2.8 and 4.8 mm."
+  },
+  {
+   "id": "butt",
+   "name": "Butt connector",
+   "spec": "0.5–6 mm²",
+   "short": "Butt",
+   "pins": null,
+   "group": "terminal",
+   "var": null,
+   "note": "Joins two wires end to end. Heat-shrink versions seal."
+  },
+  {
+   "id": "ferrule",
+   "name": "Ferrule",
+   "spec": "DIN 46228",
+   "short": "Ferrule",
+   "pins": null,
+   "group": "terminal",
+   "var": null,
+   "note": "Wire-end sleeve for screw and push-in terminals."
+  }
+ ],
+ "variants": [
+  {
+   "id": "header",
+   "name": "Pin header",
+   "gender": "M",
+   "short": "Header M",
+   "view": "Front",
+   "note": "Straight male pins through a plastic spacer.",
+   "mask": ""
+  },
+  {
+   "id": "header-ra",
+   "name": "Right-angle header",
+   "gender": "M",
+   "short": "RA hdr M",
+   "view": "Side",
+   "note": "Pins leave the board sideways. Spacer on the mating side.",
+   "mask": ""
+  },
+  {
+   "id": "header-smd",
+   "name": "SMD header",
+   "gender": "M",
+   "short": "SMD hdr M",
+   "view": "Front",
+   "note": "Surface-mount feet, alternating left and right.",
+   "mask": ""
+  },
+  {
+   "id": "socket",
+   "name": "Socket header",
+   "gender": "F",
+   "short": "Socket F",
+   "view": "Front",
+   "note": "Female strip. Open bores along the top."
+  },
+  {
+   "id": "shrouded",
+   "name": "Shrouded header",
+   "gender": "M",
+   "short": "Board M",
+   "view": "Front",
+   "note": "Board-side half of JST, Molex and IDC: pins inside a walled shroud."
+  },
+  {
+   "id": "housing-f",
+   "name": "Cable housing",
+   "gender": "F",
+   "short": "Housing F",
+   "view": "Top",
+   "note": "Crimp housing on the wire end. Sockets open at the face."
+  },
+  {
+   "id": "housing-m",
+   "name": "Cable plug",
+   "gender": "M",
+   "short": "Plug M",
+   "view": "Top",
+   "note": "Wire-to-wire male half. Pins stand proud of the face.",
+   "mask": ""
+  },
+  {
+   "id": "crimp-f",
+   "name": "Crimp socket",
+   "gender": "F",
+   "short": "Crimp F",
+   "view": "Side",
+   "note": "Loose female contact: box receptacle, wire and insulation crimps."
+  },
+  {
+   "id": "crimp-m",
+   "name": "Crimp pin",
+   "gender": "M",
+   "short": "Crimp M",
+   "view": "Side",
+   "note": "Loose male contact: solid pin, wire and insulation crimps.",
+   "mask": ""
+  },
+  {
+   "id": "jack",
+   "name": "Board jack",
+   "gender": "F",
+   "short": "Jack F",
+   "view": "Side",
+   "note": "Board-mount receptacle: USB, barrel, XT. Opening faces the edge."
+  },
+  {
+   "id": "panel",
+   "name": "Panel mount",
+   "gender": "F",
+   "short": "Panel F",
+   "view": "Side",
+   "note": "Bulkhead jack. Flange in front of the panel, nut behind."
+  }
+ ]
+}

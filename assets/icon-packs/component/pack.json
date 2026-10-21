@@ -1,0 +1,657 @@
+{
+ "symbols": [
+  {
+   "id": "resistor",
+   "name": "Resistor",
+   "short": "Resistor",
+   "group": "passive",
+   "value": "10 kΩ",
+   "pkg": "chip",
+   "std": "ANSI",
+   "note": "Zigzag form, used in US and most hobby schematics."
+  },
+  {
+   "id": "resistor-iec",
+   "name": "Resistor (IEC)",
+   "short": "Resistor",
+   "group": "passive",
+   "value": "10 kΩ",
+   "pkg": "axial",
+   "std": "IEC 60617",
+   "note": "Rectangle form, used in Europe."
+  },
+  {
+   "id": "pot",
+   "name": "Potentiometer",
+   "short": "Pot",
+   "group": "passive",
+   "value": "10 kΩ",
+   "pkg": null,
+   "std": "IEC",
+   "note": "Resistor with a wiper arrow. Also used for trimmers."
+  },
+  {
+   "id": "ntc",
+   "name": "Thermistor",
+   "short": "NTC",
+   "group": "passive",
+   "value": "10 kΩ",
+   "pkg": "disc",
+   "std": "IEC",
+   "note": "Resistor crossed by a bent line: value changes with temperature."
+  },
+  {
+   "id": "fuse",
+   "name": "Fuse",
+   "short": "Fuse",
+   "group": "passive",
+   "value": "500 mA",
+   "pkg": null,
+   "std": "IEC",
+   "note": "Rectangle with the conductor running through it."
+  },
+  {
+   "id": "cap",
+   "name": "Capacitor",
+   "short": "Cap",
+   "group": "passive",
+   "value": "100 nF",
+   "pkg": "chip",
+   "std": "",
+   "note": "Two parallel plates. Ceramic, film, any non-polarised type."
+  },
+  {
+   "id": "cap-pol",
+   "name": "Electrolytic",
+   "short": "Elec cap",
+   "group": "passive",
+   "value": "10 µF",
+   "pkg": "radial",
+   "std": "",
+   "note": "Polarised: straight plate is +, curved plate is −."
+  },
+  {
+   "id": "inductor",
+   "name": "Inductor",
+   "short": "Inductor",
+   "group": "passive",
+   "value": "10 µH",
+   "pkg": "smd-ind",
+   "std": "",
+   "note": "Coil of four turns. Chokes, ferrite inductors."
+  },
+  {
+   "id": "crystal",
+   "name": "Crystal",
+   "short": "Crystal",
+   "group": "passive",
+   "value": "16 MHz",
+   "pkg": "hc49",
+   "std": "",
+   "note": "Quartz slab between two plates."
+  },
+  {
+   "id": "diode",
+   "name": "Diode",
+   "short": "Diode",
+   "group": "semi",
+   "value": "1N4148",
+   "pkg": "do41",
+   "std": "",
+   "note": "Triangle points to the bar, the cathode."
+  },
+  {
+   "id": "zener",
+   "name": "Zener diode",
+   "short": "Zener",
+   "group": "semi",
+   "value": "5V1",
+   "pkg": "do41",
+   "std": "",
+   "note": "Cathode bar with bent ends."
+  },
+  {
+   "id": "schottky",
+   "name": "Schottky diode",
+   "short": "Schottky",
+   "group": "semi",
+   "value": "1N5819",
+   "pkg": "sod",
+   "std": "",
+   "note": "Cathode bar with S-shaped hooks."
+  },
+  {
+   "id": "led",
+   "name": "LED",
+   "short": "LED",
+   "group": "semi",
+   "value": "Red",
+   "pkg": "led5",
+   "std": "",
+   "note": "Diode with two arrows pointing away: light out."
+  },
+  {
+   "id": "npn",
+   "name": "NPN transistor",
+   "short": "NPN",
+   "group": "semi",
+   "value": "2N3904",
+   "pkg": "to92",
+   "std": "",
+   "note": "Bipolar. Emitter arrow points out."
+  },
+  {
+   "id": "pnp",
+   "name": "PNP transistor",
+   "short": "PNP",
+   "group": "semi",
+   "value": "2N3906",
+   "pkg": "to92",
+   "std": "",
+   "note": "Bipolar. Emitter arrow points in."
+  },
+  {
+   "id": "nmos",
+   "name": "N-channel MOSFET",
+   "short": "N-FET",
+   "group": "semi",
+   "value": "IRLZ44N",
+   "pkg": "to220",
+   "std": "",
+   "note": "Enhancement mode. Arrow points into the channel."
+  },
+  {
+   "id": "pmos",
+   "name": "P-channel MOSFET",
+   "short": "P-FET",
+   "group": "semi",
+   "value": "IRF9540",
+   "pkg": "to220",
+   "std": "",
+   "note": "Enhancement mode. Arrow points out of the channel."
+  },
+  {
+   "id": "opamp",
+   "name": "Op-amp",
+   "short": "Op-amp",
+   "group": "semi",
+   "value": "LM358",
+   "pkg": "soic",
+   "std": "",
+   "note": "Triangle with inverting (−) and non-inverting (+) inputs."
+  },
+  {
+   "id": "ic",
+   "name": "Integrated circuit",
+   "short": "IC",
+   "group": "semi",
+   "value": "NE555",
+   "pkg": "dip",
+   "std": "",
+   "note": "Generic block for any chip: timers, regulators, MCUs."
+  },
+  {
+   "id": "switch",
+   "name": "Switch",
+   "short": "Switch",
+   "group": "em",
+   "value": "SPST",
+   "pkg": null,
+   "std": "",
+   "note": "Single pole, single throw. Toggle and slide switches."
+  },
+  {
+   "id": "button",
+   "name": "Push button",
+   "short": "Button",
+   "group": "em",
+   "value": "Tactile",
+   "pkg": "tact",
+   "std": "",
+   "note": "Normally open, momentary."
+  },
+  {
+   "id": "relay",
+   "name": "Relay",
+   "short": "Relay",
+   "group": "em",
+   "value": "5 V",
+   "pkg": null,
+   "std": "",
+   "note": "Coil on the left, linked contact on the right."
+  },
+  {
+   "id": "battery",
+   "name": "Battery",
+   "short": "Battery",
+   "group": "em",
+   "value": "CR2032",
+   "pkg": "coin",
+   "std": "",
+   "note": "Long plate +, short plate −. Two cells shown."
+  },
+  {
+   "id": "speaker",
+   "name": "Speaker",
+   "short": "Speaker",
+   "group": "em",
+   "value": "8 Ω",
+   "pkg": null,
+   "std": "",
+   "note": "Magnet and cone. Dynamic speakers and passive buzzers."
+  },
+  {
+   "id": "motor",
+   "name": "Motor",
+   "short": "Motor",
+   "group": "em",
+   "value": "DC 6 V",
+   "pkg": null,
+   "std": "",
+   "note": "Circle with M."
+  },
+  {
+   "id": "tvs",
+   "name": "TVS diode",
+   "short": "TVS",
+   "group": "semi",
+   "value": "SMBJ5.0CA",
+   "pkg": "sod",
+   "code": "SMB",
+   "std": "",
+   "note": "Bidirectional transient suppressor: two Zeners back to back."
+  },
+  {
+   "id": "bridge",
+   "name": "Bridge rectifier",
+   "short": "Bridge",
+   "group": "semi",
+   "value": "DB107",
+   "pkg": null,
+   "std": "",
+   "note": "Four diodes in a diamond. AC in top and bottom, DC out left (−) and right (+)."
+  },
+  {
+   "id": "varistor",
+   "name": "Varistor (MOV)",
+   "short": "MOV",
+   "group": "passive",
+   "value": "14D471",
+   "pkg": "disc",
+   "std": "IEC",
+   "note": "Resistor crossed by a line bent at both ends: clamps voltage spikes."
+  },
+  {
+   "id": "ldr",
+   "name": "Photoresistor (LDR)",
+   "short": "LDR",
+   "group": "passive",
+   "value": "GL5528",
+   "pkg": null,
+   "std": "IEC",
+   "note": "Resistor with light arrows pointing in."
+  },
+  {
+   "id": "photodiode",
+   "name": "Photodiode",
+   "short": "Photodiode",
+   "group": "semi",
+   "value": "BPW34",
+   "pkg": null,
+   "std": "",
+   "note": "Diode with light arrows pointing in."
+  },
+  {
+   "id": "phototransistor",
+   "name": "Phototransistor",
+   "short": "Photo-Q",
+   "group": "semi",
+   "value": "SFH 309",
+   "pkg": "led5",
+   "code": "3 mm",
+   "std": "",
+   "note": "NPN without a base lead. Light is the base current."
+  },
+  {
+   "id": "opto",
+   "name": "Optocoupler",
+   "short": "Opto",
+   "group": "semi",
+   "value": "PC817",
+   "pkg": "dip",
+   "code": "DIP-4",
+   "std": "",
+   "note": "LED and phototransistor in one package: isolates two circuits."
+  },
+  {
+   "id": "scr",
+   "name": "Thyristor (SCR)",
+   "short": "SCR",
+   "group": "semi",
+   "value": "MCR100-6",
+   "pkg": "to92",
+   "std": "",
+   "note": "Diode with a gate on the cathode side. Latches on until current stops."
+  },
+  {
+   "id": "triac",
+   "name": "Triac",
+   "short": "Triac",
+   "group": "semi",
+   "value": "BT136",
+   "pkg": "to220",
+   "std": "",
+   "note": "Two thyristors in anti-parallel with one gate. AC switching."
+  },
+  {
+   "id": "ferrite",
+   "name": "Ferrite bead",
+   "short": "Ferrite",
+   "group": "passive",
+   "value": "600 Ω",
+   "pkg": "chip",
+   "std": "",
+   "note": "Wire through a tilted block. Impedance is given at 100 MHz."
+  },
+  {
+   "id": "transformer",
+   "name": "Transformer",
+   "short": "Transformer",
+   "group": "passive",
+   "value": "230/12 V",
+   "pkg": null,
+   "std": "",
+   "note": "Two coils with an iron core between them."
+  },
+  {
+   "id": "trimmer",
+   "name": "Trimmer",
+   "short": "Trimmer",
+   "group": "passive",
+   "value": "10 kΩ",
+   "pkg": null,
+   "std": "IEC",
+   "note": "Preset resistor. The wiper ends in a bar: set once with a screwdriver."
+  },
+  {
+   "id": "encoder",
+   "name": "Rotary encoder",
+   "short": "Encoder",
+   "group": "em",
+   "value": "EC11",
+   "pkg": null,
+   "std": "",
+   "note": "Knob with A, C, B pins. Counts steps in either direction."
+  },
+  {
+   "id": "dipsw",
+   "name": "DIP switch",
+   "short": "DIP sw",
+   "group": "em",
+   "value": "4-way",
+   "pkg": "dip",
+   "std": "",
+   "note": "A row of slide switches in one block."
+  },
+  {
+   "id": "buzzer",
+   "name": "Buzzer",
+   "short": "Buzzer",
+   "group": "em",
+   "value": "5 V",
+   "pkg": null,
+   "std": "",
+   "note": "Half-dome on two leads. Active buzzers have the + mark."
+  },
+  {
+   "id": "regulator",
+   "name": "Voltage regulator",
+   "short": "Regulator",
+   "group": "semi",
+   "value": "7805",
+   "pkg": "to220",
+   "std": "",
+   "note": "Block with in, out and ground. Linear or switching."
+  }
+ ],
+ "packages": [
+  {
+   "id": "axial",
+   "name": "Axial",
+   "code": "Axial",
+   "group": "tht",
+   "note": "Resistors and some caps. Leads out of both ends."
+  },
+  {
+   "id": "do41",
+   "name": "Axial diode",
+   "code": "DO-41",
+   "group": "tht",
+   "note": "Glass DO-35 or plastic DO-41. Band marks the cathode."
+  },
+  {
+   "id": "radial",
+   "name": "Radial can",
+   "code": "Radial",
+   "group": "tht",
+   "note": "Electrolytic. Stripe marks −, longer leg is +."
+  },
+  {
+   "id": "disc",
+   "name": "Ceramic disc",
+   "code": "Disc",
+   "group": "tht",
+   "note": "Ceramic caps, NTC thermistors, varistors."
+  },
+  {
+   "id": "film",
+   "name": "Box film",
+   "code": "Film",
+   "group": "tht",
+   "note": "Film capacitors. Rectangular block, two legs."
+  },
+  {
+   "id": "to92",
+   "name": "TO-92",
+   "code": "TO-92",
+   "group": "tht",
+   "note": "Small transistors and regulators. Flat face forward."
+  },
+  {
+   "id": "to220",
+   "name": "TO-220",
+   "code": "TO-220",
+   "group": "tht",
+   "note": "Power transistors and regulators. Metal tab with a hole."
+  },
+  {
+   "id": "dip",
+   "name": "DIP",
+   "code": "DIP-8",
+   "group": "tht",
+   "note": "Dual in-line, top view. Notch and dot mark pin 1."
+  },
+  {
+   "id": "led5",
+   "name": "5 mm LED",
+   "code": "5 mm",
+   "group": "tht",
+   "note": "Domed lens, flange, longer leg is the anode."
+  },
+  {
+   "id": "hc49",
+   "name": "HC-49",
+   "code": "HC-49",
+   "group": "tht",
+   "note": "Crystal in a low metal can."
+  },
+  {
+   "id": "tact",
+   "name": "Tactile switch",
+   "code": "6×6",
+   "group": "tht",
+   "note": "Top view: square body, round plunger, four legs."
+  },
+  {
+   "id": "chip",
+   "name": "Chip",
+   "code": "0805",
+   "group": "smd",
+   "note": "Resistors, caps, ferrite beads. 0402 to 2512."
+  },
+  {
+   "id": "sod",
+   "name": "SOD / SMA",
+   "code": "SOD-123",
+   "group": "smd",
+   "note": "Diode body with cathode band, flat leads."
+  },
+  {
+   "id": "sot23",
+   "name": "SOT-23",
+   "code": "SOT-23",
+   "group": "smd",
+   "note": "Three-lead small transistor package, top view."
+  },
+  {
+   "id": "sot223",
+   "name": "SOT-223",
+   "code": "SOT-223",
+   "group": "smd",
+   "note": "Regulators like AMS1117. Wide tab, three leads."
+  },
+  {
+   "id": "soic",
+   "name": "SOIC",
+   "code": "SOIC-8",
+   "group": "smd",
+   "note": "Gull-wing leads on two sides. Dot marks pin 1."
+  },
+  {
+   "id": "qfp",
+   "name": "QFP",
+   "code": "TQFP",
+   "group": "smd",
+   "note": "Leads on all four sides. Microcontrollers."
+  },
+  {
+   "id": "qfn",
+   "name": "QFN",
+   "code": "QFN",
+   "group": "smd",
+   "note": "No leads. Bottom view: edge pads and a thermal pad."
+  },
+  {
+   "id": "smd-elec",
+   "name": "SMD electrolytic",
+   "code": "SMD can",
+   "group": "smd",
+   "note": "Top view. Dark segment marks −, chamfered base is +."
+  },
+  {
+   "id": "dpak",
+   "name": "DPAK",
+   "code": "DPAK",
+   "group": "smd",
+   "note": "TO-252 power package. Tab soldered to the board."
+  },
+  {
+   "id": "smd-ind",
+   "name": "Power inductor",
+   "code": "SMD ind",
+   "group": "smd",
+   "note": "Shielded square body with a round core."
+  },
+  {
+   "id": "to247",
+   "name": "TO-247",
+   "code": "TO-247",
+   "group": "tht",
+   "note": "Large power package. Mounting hole through the body."
+  },
+  {
+   "id": "sip",
+   "name": "SIP network",
+   "code": "SIP-9",
+   "group": "tht",
+   "note": "Resistor network in a single row. Dot marks the common pin."
+  },
+  {
+   "id": "seg7",
+   "name": "7-segment display",
+   "code": "0.56″",
+   "group": "tht",
+   "note": "Front view. Seven bars and a decimal point."
+  },
+  {
+   "id": "sot89",
+   "name": "SOT-89",
+   "code": "SOT-89",
+   "group": "smd",
+   "note": "Small power package. The middle lead runs through as a tab."
+  },
+  {
+   "id": "sot23-6",
+   "name": "SOT-23-6",
+   "code": "SOT-23-6",
+   "group": "smd",
+   "note": "Five or six leads. LDOs, small logic, MOSFET pairs."
+  },
+  {
+   "id": "d2pak",
+   "name": "D²PAK",
+   "code": "D²PAK",
+   "group": "smd",
+   "note": "TO-263. Bigger DPAK for power MOSFETs and regulators."
+  },
+  {
+   "id": "melf",
+   "name": "MELF",
+   "code": "MELF",
+   "group": "smd",
+   "note": "Cylindrical SMD body with metal end caps."
+  },
+  {
+   "id": "tssop",
+   "name": "TSSOP / MSOP",
+   "code": "TSSOP",
+   "group": "smd",
+   "note": "Thin, fine-pitch version of SOIC."
+  },
+  {
+   "id": "bga",
+   "name": "BGA",
+   "code": "BGA",
+   "group": "smd",
+   "note": "Bottom view. Ball grid, chamfer marks A1."
+  },
+  {
+   "id": "smd-led",
+   "name": "SMD LED",
+   "code": "5050",
+   "group": "smd",
+   "note": "PLCC style. Round lens, cut corner marks the cathode."
+  },
+  {
+   "id": "smd-xtal",
+   "name": "SMD crystal",
+   "code": "3225",
+   "group": "smd",
+   "note": "Metal lid on a ceramic base. 3.2 × 2.5 mm and up."
+  },
+  {
+   "id": "cell18650",
+   "name": "18650 cell",
+   "code": "18650",
+   "group": "cell",
+   "note": "Li-ion cylinder, 18 × 65 mm. Button end is +."
+  },
+  {
+   "id": "coin",
+   "name": "Coin cell",
+   "code": "CR2032",
+   "group": "cell",
+   "note": "Lithium coin cell, + side up."
+  }
+ ]
+}

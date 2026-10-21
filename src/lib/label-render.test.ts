@@ -112,6 +112,55 @@ test("content a symbology can't encode is reported, and the rest of the label st
   assert.ok(body.includes("A/IV"));
 });
 
+test("a rotated element is turned about its own centre; an unrotated one gets no wrapper", () => {
+  const template = (rotation?: number): LabelTemplate => ({
+    width: 40, height: 20, layout: { kind: "single" }, elements: [text({ x: 10, y: 4, rotation })],
+  });
+  assert.match(renderLabelSvg(template(90), vars).body, /<g transform="rotate\(90 20 9\)"><text /);
+  assert.doesNotMatch(renderLabelSvg(template(), vars).body, /rotate\(/);
+});
+
+const one = (el: LabelTemplate["elements"][number]): LabelTemplate => ({
+  width: 40, height: 20, layout: { kind: "single" }, elements: [el],
+});
+
+test("frames draw their fill and border colour; a 0 width border means fill only", () => {
+  const frame = { id: "f", kind: "frame" as const, x: 0, y: 0, w: 40, h: 20, strokeWidth: 0.4, radius: 2 };
+  const outlined = renderLabelSvg(one({ ...frame, stroke: "#ff0000" }), vars).body;
+  assert.match(outlined, /fill="none" stroke="#ff0000" stroke-width="0.4"/);
+  const filled = renderLabelSvg(one({ ...frame, fill: "#000000", strokeWidth: 0 }), vars).body;
+  assert.match(filled, /rx="2" fill="#000000" stroke="none"/);
+});
+
+test("a styled text box draws its background behind the text and pads the text off its edges", () => {
+  const badge = renderLabelSvg(one(text({ fill: "#000000", color: "#ffffff", radius: 1 })), vars).body;
+  assert.match(badge, /<rect [^>]*fill="#000000"[^>]*\/><text [^>]*fill="#ffffff"/);
+  // Start-aligned text moves in by the padding once the box is styled.
+  assert.match(badge, /<tspan x="0.5"/);
+  // Plain text has no box and starts at the edge, as before.
+  const plain = renderLabelSvg(one(text()), vars).body;
+  assert.doesNotMatch(plain, /<rect [^>]*stroke/);
+  assert.match(plain, /<tspan x="0"/);
+});
+
+test("an empty text hides its background too, so a blank field leaves no empty badge", () => {
+  const { body } = renderLabelSvg(one(text({ text: "{{name}}", fill: "#000000" })), { ...vars, name: "" });
+  assert.doesNotMatch(body, /fill="#000000"/);
+});
+
+test("a graphic is scaled from its viewBox into the box, centred, unless stretched", () => {
+  const graphic = {
+    id: "g", kind: "graphic" as const, x: 10, y: 0, w: 20, h: 10,
+    viewBox: [-12, -12, 24, 24] as [number, number, number, number], markup: '<circle r="12"/>', stretch: false,
+  };
+  // 24 units into 10 mm → scale 10/24, centred horizontally; the viewBox origin is offset away.
+  assert.match(
+    renderLabelSvg(one(graphic), vars).body,
+    /<g transform="translate\(20 5\) scale\(0.416667 0.416667\)" color="#000"><circle r="12"\/><\/g>/,
+  );
+  assert.match(renderLabelSvg(one({ ...graphic, stretch: true }), vars).body, /scale\(0.833333 0.416667\)/);
+});
+
 test("renderPages puts a sheet's labels onto as many pages as needed, offset into their cells", () => {
   const template: LabelTemplate = {
     width: 50, height: 20, elements: [text()],

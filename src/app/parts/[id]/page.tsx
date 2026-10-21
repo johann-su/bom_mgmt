@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
-import { ArrowRightLeft, ClipboardList, PackagePlus, Pencil } from "lucide-react";
+import { ArrowRightLeft, ClipboardList, PackagePlus, Pencil, ShoppingCart } from "lucide-react";
 import { db } from "@/db";
 import { bomItems, boms, files, parts, stock } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Markdown } from "@/components/markdown";
 import { MovementList } from "@/components/movement-list";
 import { PartThumb } from "@/components/part-thumb";
 import { StockDialog } from "@/components/stock-dialog";
@@ -103,6 +104,15 @@ export default async function PartPage({ params }: Params) {
           </div>
         </div>
         <div className="flex gap-2">
+          {part.orderUrl && (
+            // Out of stock or below minimum → the primary action is reordering.
+            <Button variant={low || total === 0 ? "default" : "outline"} asChild>
+              <a href={part.orderUrl} target="_blank" rel="noopener noreferrer">
+                <ShoppingCart className="size-4" />
+                Order
+              </a>
+            </Button>
+          )}
           <Button variant="outline" asChild>
             <Link href={`/parts/${id}/edit`}>
               <Pencil className="size-4" />
@@ -222,7 +232,7 @@ export default async function PartPage({ params }: Params) {
                 <CardTitle className="text-base">Details</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4">
-                {part.description && <p className="whitespace-pre-wrap text-sm">{part.description}</p>}
+                {part.description && <Markdown>{part.description}</Markdown>}
                 {part.attributes.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                     {part.attributes.map((a) => (

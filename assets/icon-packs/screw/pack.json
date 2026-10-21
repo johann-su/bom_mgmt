@@ -1,0 +1,629 @@
+{
+ "drives": [
+  {
+   "id": "phillips",
+   "name": "Phillips",
+   "code": "PH",
+   "short": "Phillips",
+   "note": "Tapered cross. Cams out under load."
+  },
+  {
+   "id": "pozidriv",
+   "name": "Pozidriv",
+   "code": "PZ",
+   "short": "Pozi",
+   "note": "Straight cross with tick marks between the arms."
+  },
+  {
+   "id": "slotted",
+   "name": "Slotted",
+   "code": "SL",
+   "short": "Slot",
+   "note": "Single straight slot."
+  },
+  {
+   "id": "combo",
+   "name": "Slot / Phillips",
+   "code": "SL/PH",
+   "short": "Combo",
+   "note": "Takes either a flat or a Phillips bit."
+  },
+  {
+   "id": "hex",
+   "name": "Hex socket",
+   "code": "H",
+   "short": "Hex",
+   "note": "Allen key. Size in mm across flats."
+  },
+  {
+   "id": "hex-pin",
+   "name": "Hex security",
+   "code": "H-TR",
+   "short": "Hex pin",
+   "note": "Hex socket with a centre pin."
+  },
+  {
+   "id": "torx",
+   "name": "Torx",
+   "code": "T",
+   "short": "Torx",
+   "note": "Six-lobe star. Sized T6 to T55."
+  },
+  {
+   "id": "torx-pin",
+   "name": "Torx security",
+   "code": "TR",
+   "short": "Torx pin",
+   "note": "Six-lobe with a tamper pin."
+  },
+  {
+   "id": "square",
+   "name": "Square",
+   "code": "SQ",
+   "short": "Square",
+   "note": "Robertson. Sized #0 to #3."
+  },
+  {
+   "id": "triwing",
+   "name": "Tri-wing",
+   "code": "TW",
+   "short": "Tri-wing",
+   "note": "Three offset wings. Common in electronics."
+  },
+  {
+   "id": "spanner",
+   "name": "Spanner",
+   "code": "SP",
+   "short": "Spanner",
+   "note": "Two holes, also called snake-eye."
+  },
+  {
+   "id": "ext-hex",
+   "name": "External hex",
+   "code": "SW",
+   "short": "Hex head",
+   "note": "No recess. Turned with a spanner or socket."
+  },
+  {
+   "id": "ext-square",
+   "name": "External square",
+   "code": "SQ-EXT",
+   "short": "Sq head",
+   "note": "Square head, turned with a spanner."
+  }
+ ],
+ "heads": [
+  {
+   "id": "socket-cap",
+   "name": "Socket cap",
+   "code": "ISO 4762",
+   "short": "SHCS",
+   "note": "Tall cylinder, head height equals thread size.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "low-cap",
+   "name": "Low head cap",
+   "code": "DIN 7984",
+   "short": "Low cap",
+   "note": "Socket cap at roughly 60 % of the height.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "button",
+   "name": "Button",
+   "code": "ISO 7380-1",
+   "short": "Button",
+   "note": "Low dome, wider than a socket cap.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "flange-button",
+   "name": "Flanged button",
+   "code": "ISO 7380-2",
+   "short": "Flg button",
+   "note": "Button head on an integral washer.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "pan",
+   "name": "Pan",
+   "code": "ISO 7045",
+   "short": "Pan",
+   "note": "Flat top, rounded shoulders, slightly flared.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "cheese",
+   "name": "Cheese",
+   "code": "ISO 1207",
+   "short": "Cheese",
+   "note": "Short cylinder with a lightly domed top.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "truss",
+   "name": "Truss",
+   "code": "ASME B18.6",
+   "short": "Truss",
+   "note": "Extra wide, very low dome.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "countersunk",
+   "name": "Countersunk",
+   "code": "ISO 10642",
+   "short": "CSK",
+   "note": "Flat top, 90° cone. Sits flush.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "raised-csk",
+   "name": "Raised countersunk",
+   "code": "ISO 7047",
+   "short": "Raised CSK",
+   "note": "Countersunk with an oval dome on top.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "hex-head",
+   "name": "Hex head",
+   "code": "ISO 4017",
+   "short": "Hex bolt",
+   "note": "Shown across corners: three visible flats.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ]
+  },
+  {
+   "id": "hex-flange",
+   "name": "Hex flange",
+   "code": "ISO 4162",
+   "short": "Hex flg",
+   "note": "Hex head on a plain or serrated flange.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ]
+  },
+  {
+   "id": "square-head",
+   "name": "Square head",
+   "code": "DIN 478",
+   "short": "Sq bolt",
+   "note": "Shown flat-on: one wide face, chamfered top.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "carriage",
+   "name": "Carriage",
+   "code": "DIN 603",
+   "short": "Carriage",
+   "note": "Round dome with a square neck that locks in wood.",
+   "threads": [
+    "machine",
+    "tapping",
+    "wood",
+    "plastic"
+   ],
+   "mask": ""
+  },
+  {
+   "id": "shoulder",
+   "name": "Shoulder",
+   "code": "ISO 7379",
+   "short": "Shoulder",
+   "note": "Socket head, ground shoulder, short thread.",
+   "mask": ""
+  },
+  {
+   "id": "set",
+   "name": "Set screw",
+   "code": "ISO 4026",
+   "short": "Grub",
+   "note": "Headless, flat point. Hex socket in the end."
+  }
+ ],
+ "hardware": [
+  {
+   "id": "hex-nut",
+   "name": "Hex nut",
+   "code": "ISO 4032",
+   "short": "Nut",
+   "note": "Plain hex nut.",
+   "group": "nuts"
+  },
+  {
+   "id": "nyloc",
+   "name": "Nylon lock nut",
+   "code": "ISO 7040",
+   "short": "Nyloc",
+   "note": "Nylon ring visible around the bore.",
+   "group": "nuts"
+  },
+  {
+   "id": "flange-nut",
+   "name": "Flange nut",
+   "code": "DIN 6923",
+   "short": "Flg nut",
+   "note": "Hex nut on a round flange.",
+   "group": "nuts"
+  },
+  {
+   "id": "square-nut",
+   "name": "Square nut",
+   "code": "DIN 562",
+   "short": "Sq nut",
+   "note": "Thin square nut for slotted pockets.",
+   "group": "nuts"
+  },
+  {
+   "id": "washer",
+   "name": "Flat washer",
+   "code": "ISO 7089",
+   "short": "Washer",
+   "note": "Plain flat washer.",
+   "group": "washers"
+  },
+  {
+   "id": "split-washer",
+   "name": "Split lock washer",
+   "code": "DIN 127",
+   "short": "Split lck",
+   "note": "Ring with an angled split.",
+   "group": "washers"
+  },
+  {
+   "id": "heat-insert",
+   "name": "Heat-set insert",
+   "code": "Brass",
+   "short": "Insert",
+   "note": "Knurled insert for 3D-printed parts, side view.",
+   "group": "inserts"
+  },
+  {
+   "id": "acorn",
+   "name": "Acorn nut",
+   "code": "DIN 1587",
+   "short": "Acorn",
+   "note": "Domed cap nut. Covers the thread end.",
+   "group": "nuts"
+  },
+  {
+   "id": "wing",
+   "name": "Wing nut",
+   "code": "DIN 315",
+   "short": "Wing",
+   "note": "Hand-tightened. Two wings on a round hub.",
+   "group": "nuts",
+   "mask": ""
+  },
+  {
+   "id": "coupling",
+   "name": "Coupling nut",
+   "code": "DIN 6334",
+   "short": "Coupling",
+   "note": "Long hex nut that joins two threaded rods.",
+   "group": "nuts",
+   "len": true
+  },
+  {
+   "id": "rivnut",
+   "name": "Rivet nut",
+   "code": "Blind rivet nut",
+   "short": "Rivnut",
+   "note": "Crimped into sheet or tube from one side. Gives a thread in thin walls.",
+   "group": "nuts"
+  },
+  {
+   "id": "t-nut",
+   "name": "Sliding T-nut",
+   "code": "2020 slot 6",
+   "short": "T-nut",
+   "note": "End view. Slides in from the end of the profile.",
+   "group": "extrusion"
+  },
+  {
+   "id": "drop-in",
+   "name": "Drop-in T-nut",
+   "code": "2020 slot 6",
+   "short": "Drop-in",
+   "note": "End view. Rolls in through the slot after assembly.",
+   "group": "extrusion"
+  },
+  {
+   "id": "hammer",
+   "name": "Hammer nut",
+   "code": "2020 slot 6",
+   "short": "Hammer",
+   "note": "Top view. Drops in and twists a quarter turn to lock.",
+   "group": "extrusion"
+  },
+  {
+   "id": "toothed",
+   "name": "Toothed lock washer",
+   "code": "DIN 6797 A",
+   "short": "Tooth lck",
+   "note": "External teeth bite into both faces.",
+   "group": "washers"
+  },
+  {
+   "id": "fender",
+   "name": "Fender washer",
+   "code": "DIN 9021",
+   "short": "Fender",
+   "note": "Large outside diameter. Spreads load on soft parts.",
+   "group": "washers"
+  },
+  {
+   "id": "helicoil",
+   "name": "Helicoil insert",
+   "code": "DIN 8140",
+   "short": "Helicoil",
+   "note": "Wire thread insert. Repairs or reinforces tapped holes.",
+   "group": "inserts",
+   "mask": ""
+  },
+  {
+   "id": "standoff-mf",
+   "name": "Standoff M-F",
+   "code": "Hex, M-F",
+   "short": "Stdoff M-F",
+   "note": "Hex spacer with a stud and a threaded hole.",
+   "group": "inserts",
+   "len": true
+  },
+  {
+   "id": "standoff-ff",
+   "name": "Standoff F-F",
+   "code": "Hex, F-F",
+   "short": "Stdoff F-F",
+   "note": "Hex spacer threaded at both ends.",
+   "group": "inserts",
+   "len": true
+  },
+  {
+   "id": "spacer",
+   "name": "Spacer",
+   "code": "Unthreaded",
+   "short": "Spacer",
+   "note": "Plain round sleeve, clearance bore.",
+   "group": "inserts",
+   "len": true
+  },
+  {
+   "id": "rod",
+   "name": "Threaded rod",
+   "code": "DIN 976",
+   "short": "Thd rod",
+   "note": "Fully threaded, cut to length.",
+   "group": "inserts",
+   "len": true
+  },
+  {
+   "id": "pop-rivet",
+   "name": "Pop rivet",
+   "code": "DIN 7337",
+   "short": "Pop rivet",
+   "note": "Blind rivet. The mandrel pulls the body tight and snaps off.",
+   "group": "pins",
+   "sizes": [
+    "Ø2.4",
+    "Ø3.2",
+    "Ø4.0",
+    "Ø4.8",
+    "Ø6.4"
+   ],
+   "len": true,
+   "mask": ""
+  },
+  {
+   "id": "dowel",
+   "name": "Dowel pin",
+   "code": "ISO 8734",
+   "short": "Dowel",
+   "note": "Ground pin for exact location. Chamfered ends.",
+   "group": "pins",
+   "sizes": [
+    "Ø2",
+    "Ø2.5",
+    "Ø3",
+    "Ø4",
+    "Ø5",
+    "Ø6",
+    "Ø8"
+   ],
+   "len": true,
+   "mask": ""
+  },
+  {
+   "id": "spring-pin",
+   "name": "Spring pin",
+   "code": "ISO 8752",
+   "short": "Roll pin",
+   "note": "End view. Slotted tube that grips by spring force.",
+   "group": "pins",
+   "sizes": [
+    "Ø2",
+    "Ø2.5",
+    "Ø3",
+    "Ø4",
+    "Ø5",
+    "Ø6",
+    "Ø8"
+   ],
+   "len": true
+  },
+  {
+   "id": "circlip",
+   "name": "Circlip",
+   "code": "DIN 471",
+   "short": "Circlip",
+   "note": "External retaining ring with plier holes. Size is the shaft.",
+   "group": "pins",
+   "sizes": [
+    "Ø4",
+    "Ø5",
+    "Ø6",
+    "Ø8",
+    "Ø10",
+    "Ø12",
+    "Ø15"
+   ]
+  },
+  {
+   "id": "e-clip",
+   "name": "E-clip",
+   "code": "DIN 6799",
+   "short": "E-clip",
+   "note": "Pushes into a groove from the side. Size is the groove.",
+   "group": "pins",
+   "sizes": [
+    "Ø1.9",
+    "Ø2.3",
+    "Ø3.2",
+    "Ø4",
+    "Ø5",
+    "Ø6",
+    "Ø7",
+    "Ø9"
+   ]
+  }
+ ],
+ "threads": [
+  {
+   "id": "machine",
+   "name": "Machine thread",
+   "short": "",
+   "code": "ISO 261",
+   "note": "Metric thread with a flat end. Needs a tapped hole, a nut or an insert.",
+   "sizes": [
+    "M2",
+    "M2.5",
+    "M3",
+    "M4",
+    "M5",
+    "M6",
+    "M8",
+    "M10"
+   ],
+   "dflt": "M3"
+  },
+  {
+   "id": "tapping",
+   "name": "Self-tapping",
+   "short": "Self-tap",
+   "code": "ISO 1478",
+   "note": "Coarse thread and a sharp point. Cuts its own thread in sheet metal and plastic.",
+   "sizes": [
+    "ST2.2",
+    "ST2.9",
+    "ST3.5",
+    "ST3.9",
+    "ST4.2",
+    "ST4.8",
+    "ST5.5"
+   ],
+   "dflt": "ST2.9"
+  },
+  {
+   "id": "wood",
+   "name": "Wood screw",
+   "short": "Wood",
+   "code": "DIN 7505",
+   "note": "Smooth shank under the head, deep coarse thread, sharp point.",
+   "sizes": [
+    "2.5",
+    "3.0",
+    "3.5",
+    "4.0",
+    "4.5",
+    "5.0",
+    "6.0"
+   ],
+   "dflt": "3.5"
+  },
+  {
+   "id": "plastic",
+   "name": "Thread-forming for plastic",
+   "short": "Plastic",
+   "code": "PT / Delta PT type",
+   "note": "Narrow 30° flanks and a wide pitch. Holds in printed parts without inserts.",
+   "sizes": [
+    "2.0",
+    "2.2",
+    "2.5",
+    "3.0",
+    "3.5",
+    "4.0",
+    "5.0"
+   ],
+   "dflt": "2.5"
+  }
+ ]
+}

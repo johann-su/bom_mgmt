@@ -11,6 +11,7 @@
 // template prints a whole series of bins.
 
 import { locationCode, locationPath } from "@/lib/location-tree";
+import { sanitizeSvgMarkup } from "@/lib/svg-sanitize";
 
 export const SYMBOLOGIES = {
   datamatrix: { name: "Data Matrix", twoD: true },
@@ -20,10 +21,33 @@ export const SYMBOLOGIES = {
 } as const;
 export type Symbology = keyof typeof SYMBOLOGIES;
 
-type Box = { id: string; x: number; y: number; w: number; h: number };
+type Box = {
+  id: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  // Degrees clockwise about the box's centre, in [0, 360); absent when 0.
+  // x/y/w/h stay the unrotated box, so turning an element never moves it.
+  rotation?: number;
+};
 
-export type TextElement = Box & {
+// How a frame, or the box behind a text, is drawn. Colours are "#rrggbb";
+// thermal printers print each as black or white (see niimbot-raster.ts).
+export type BoxStyle = {
+  // Absent → transparent.
+  fill?: string;
+  // Absent → black.
+  stroke?: string;
+  // mm; 0 → no border.
+  strokeWidth: number;
+  radius: number;
+};
+
+export type TextElement = Box & Partial<BoxStyle> & {
   kind: "text";
+  // Absent → black.
+  color?: string;
   text: string;
   // Points, as in every word processor; converted to mm when rendering.
   fontSize: number;
@@ -36,9 +60,33 @@ export type TextElement = Box & {
 
 export type CodeElement = Box & { kind: "code"; text: string; symbology: Symbology };
 
-export type FrameElement = Box & { kind: "frame"; strokeWidth: number; radius: number };
+export type FrameElement = Box & BoxStyle & { kind: "frame" };
 
-export type LabelElement = TextElement | CodeElement | FrameElement;
+// A vector graphic (logo, warning symbol, icon) imported from SVG. `markup`
+// is the sanitised drawing (svg-sanitize.ts) in `viewBox` units; it is
+// scaled into the box, centred, keeping its proportions unless `stretch`.
+export type GraphicElement = Box & {
+  kind: "graphic";
+  markup: string;
+  viewBox: [number, number, number, number];
+  stretch: boolean;
+  // Original file name, for the element list.
+  name?: string;
+};
+
+export type LabelElement = TextElement | CodeElement | FrameElement | GraphicElement;
+
+/** Where a newly added graphic goes: centred, as large as fits with a 1 mm margin. */
+export function graphicBox(
+  label: { width: number; height: number },
+  viewBox: GraphicElement["viewBox"],
+): { x: number; y: number; w: number; h: number } {
+  const aspect = viewBox[2] / viewBox[3];
+  const h = Math.max(1, Math.min(label.height - 2, (label.width - 2) / aspect));
+  const w = h * aspect;
+  const r = (v: number) => +v.toFixed(2);
+  return { x: r((label.width - w) / 2), y: r((label.height - h) / 2), w: r(w), h: r(h) };
+}
 
 export type PageLayout =
   | { kind: "single" }
@@ -90,7 +138,7 @@ export function fillVariables(text: string, vars: Partial<LabelVariables>): stri
 export function unknownVariables(template: LabelTemplate): string[] {
   const unknown = new Set<string>();
   for (const el of template.elements) {
-    if (el.kind === "frame") continue;
+    if (el.kind === "frame" || el.kind === "graphic") continue;
     for (const [, name] of el.text.matchAll(VARIABLE_RE)) {
       if (!(name in LABEL_VARIABLES)) unknown.add(name);
     }
@@ -186,11 +234,29 @@ export function pageSize(template: LabelTemplate): { width: number; height: numb
 
 const MAX_SIZE = 1000; // mm — anything larger is a typo, not a label
 const MAX_ELEMENTS = 50;
+const MAX_GRAPHICS_TOTAL = 600_000;
 
 function num(value: unknown, min: number, max: number): number | null {
   return typeof value === "number" && Number.isFinite(value) && value >= min && value <= max
     ? value
     : null;
+}
+
+// Colours go into SVG attributes, so only plain hex gets through.
+function color(value: unknown): string | undefined {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : undefined;
+}
+
+/** The style fields that are set, so unstyled elements stay as they were. */
+function boxStyle(e: Record<string, unknown>): Partial<BoxStyle> {
+  const style: Partial<BoxStyle> = {
+    fill: color(e.fill),
+    stroke: color(e.stroke),
+    strokeWidth: num(e.strokeWidth, 0, 10) ?? undefined,
+    radius: num(e.radius, 0, MAX_SIZE) ?? undefined,
+  };
+  for (const k of Object.keys(style) as (keyof BoxStyle)[]) if (style[k] === undefined) delete style[k];
+  return style;
 }
 
 /**
@@ -208,6 +274,7 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
   if (t.elements.length > MAX_ELEMENTS) return { error: `At most ${MAX_ELEMENTS} elements` };
 
   const elements: LabelElement[] = [];
+  let graphicBytes = 0;
   for (const [i, raw] of t.elements.entries()) {
     const e = (raw ?? {}) as Record<string, unknown>;
     const box = {
@@ -221,14 +288,20 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
       return { error: `Element ${i + 1} has an invalid position or size` };
     }
     const pos = box as Box;
+    // Normalised to [0, 360) so 90 and -270 are stored alike; 0 is left out.
+    const rotation = +((((num(e.rotation, -360, 360) ?? 0) % 360) + 360) % 360).toFixed(1) % 360;
+    if (rotation) pos.rotation = rotation;
     const text = typeof e.text === "string" ? e.text.slice(0, 500) : "";
     if (e.kind === "text") {
       const fontSize = num(e.fontSize, 1, 400);
       if (fontSize === null) return { error: `Element ${i + 1}: font size must be 1–400 pt` };
       const align = e.align === "middle" || e.align === "end" ? e.align : "start";
+      const textColor = color(e.color);
       elements.push({
         ...pos, kind: "text", text, fontSize, align,
         bold: e.bold === true, mono: e.mono === true, fit: e.fit === true,
+        ...(textColor ? { color: textColor } : {}),
+        ...boxStyle(e),
       });
     } else if (e.kind === "code") {
       if (typeof e.symbology !== "string" || !(e.symbology in SYMBOLOGIES)) {
@@ -236,15 +309,27 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
       }
       elements.push({ ...pos, kind: "code", text, symbology: e.symbology as Symbology });
     } else if (e.kind === "frame") {
+      elements.push({ ...pos, kind: "frame", strokeWidth: 0.3, radius: 0, ...boxStyle(e) });
+    } else if (e.kind === "graphic") {
+      // Never trust stored markup: it is re-sanitised on every save and load.
+      const markup = typeof e.markup === "string" ? sanitizeSvgMarkup(e.markup) : null;
+      const vb = Array.isArray(e.viewBox) ? e.viewBox.map((v) => num(v, -1e6, 1e6)) : [];
+      if (!markup || vb.length !== 4 || vb.some((v) => v === null) || vb[2]! <= 0 || vb[3]! <= 0) {
+        return { error: `Element ${i + 1}: invalid graphic` };
+      }
+      graphicBytes += markup.length;
+      const name = typeof e.name === "string" ? e.name.slice(0, 100) : "";
       elements.push({
-        ...pos, kind: "frame",
-        strokeWidth: num(e.strokeWidth, 0.05, 10) ?? 0.3,
-        radius: num(e.radius, 0, MAX_SIZE) ?? 0,
+        ...pos, kind: "graphic", markup, viewBox: vb as GraphicElement["viewBox"], stretch: e.stretch === true,
+        ...(name ? { name } : {}),
       });
     } else {
       return { error: `Element ${i + 1} has an unknown kind` };
     }
   }
+
+  // Keeps a template well under the 1 MB server-action body limit.
+  if (graphicBytes > MAX_GRAPHICS_TOTAL) return { error: "The graphics on this label are too large in total" };
 
   const l = (t.layout ?? { kind: "single" }) as Record<string, unknown>;
   let layout: PageLayout;
