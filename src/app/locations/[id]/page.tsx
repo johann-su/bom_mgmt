@@ -10,7 +10,7 @@ import { requireSession } from "@/lib/auth";
 import { loadLocations, loadLocationTypes } from "@/lib/locations";
 import { ancestry, buildTree, describeAll, locationCode, subtreeIds } from "@/lib/location-tree";
 import { partCountsByLocation } from "@/lib/location-stats";
-import { siblingLabelsByType } from "@/lib/location-siblings";
+import { siblingLabels } from "@/lib/location-siblings";
 import { loadPartOptions } from "@/lib/part-options";
 import { firstImages } from "@/lib/part-images";
 import { formatQuantity } from "@/lib/format";
@@ -178,7 +178,7 @@ export default async function LocationPage({ params }: Params) {
               parentId={id}
               parentLabel={`${location.type.name} ${location.label}`}
               types={types}
-              siblingLabels={siblingLabelsByType(all, id)}
+              siblingLabels={siblingLabels(all, id)}
               defaultTypeId={nextTypeId(types, location.type.id)}
               trigger={
                 <Button size="sm" variant="outline">

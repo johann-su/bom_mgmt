@@ -1,0 +1,89 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard"],
+  "timezone": "Europe/Berlin",
+  "schedule": ["before 6am on monday"],
+  "minimumReleaseAge": "5 days",
+  "prConcurrentLimit": 10,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": ["at any time"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "Next.js and its eslint config are pinned together — never split",
+      "groupName": "next",
+      "matchPackageNames": ["next", "eslint-config-next"]
+    },
+    {
+      "description": "React runtime pinned as a pair; treat major bumps as manual",
+      "groupName": "react",
+      "matchPackageNames": ["react", "react-dom", "@types/react", "@types/react-dom"]
+    },
+    {
+      "description": "Group all Drizzle packages (minor bumps require manual review due to pre-v1.0 volatility)",
+      "groupName": "drizzle",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit"]
+    },
+    {
+      "description": "Group AWS SDK together",
+      "groupName": "aws-sdk",
+      "matchPackageNames": ["/^@aws-sdk//"]
+    },
+    {
+      "description": "Group UI dependencies to reduce PR noise",
+      "groupName": "ui-libraries",
+      "matchPackageNames": ["radix-ui", "/^@radix-ui//", "lucide-react", "shadcn", "cmdk", "sonner", "class-variance-authority", "clsx", "tailwind-merge"]
+    },
+    {
+      "description": "Group Tailwind ecosystem",
+      "groupName": "tailwind",
+      "matchPackageNames": ["/tailwind/", "/^@tailwindcss//"]
+    },
+    {
+      "description": "Group markdown rendering/conversion",
+      "groupName": "markdown",
+      "matchPackageNames": ["react-markdown", "/^remark-/", "/^turndown/", "@types/turndown"]
+    },
+    {
+      "description": "Group PDF/label rendering",
+      "groupName": "pdf",
+      "matchPackageNames": ["jspdf", "svg2pdf.js", "opentype.js", "bwip-js"]
+    },
+    {
+      "description": "Automerge MINOR and PATCH updates for safe/trusted production dependencies",
+      "matchPackageNames": [
+        "/^@aws-sdk//",
+        "radix-ui",
+        "/^@radix-ui//",
+        "lucide-react",
+        "/tailwind/"
+      ],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge all patches, pins, and digests for remaining dependencies",
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "automerge": true
+    },
+    {
+      "description": "Automerge devDependency minors — build-only blast radius",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor"],
+      "automerge": true
+    },
+    {
+      "description": "Never auto-merge majors — review by hand",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["breaking"]
+    },
+    {
+      "description": "niimbluelib is pre-1.0 and exact-pinned; it drives the label printer over Bluetooth, so review every bump by hand (after the patch automerge so it wins)",
+      "matchPackageNames": ["@mmote/niimbluelib"],
+      "automerge": false
+    }
+  ]
+}

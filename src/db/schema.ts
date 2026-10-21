@@ -119,9 +119,11 @@ export const locations = pgTable(
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    // Siblings of one type can't share a label. NULLS NOT DISTINCT makes the
-    // rule hold for top-level locations (parent_id null) too.
-    unique("locations_sibling_label").on(t.parentId, t.typeId, t.label).nullsNotDistinct(),
+    // Siblings can't share a label, whatever their types — the code (A/2/IX)
+    // is the chain of labels, so this keeps it a unique address from root to
+    // leaf. NULLS NOT DISTINCT makes the rule hold for top-level locations
+    // (parent_id null) too.
+    unique("locations_sibling_label").on(t.parentId, t.label).nullsNotDistinct(),
     index("locations_parent_idx").on(t.parentId),
   ],
 );

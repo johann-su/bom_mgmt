@@ -23,11 +23,10 @@ async function typePattern(typeId: string): Promise<ParsedPattern | { error: str
   return "error" in parsed ? { error: `The ${type.name} pattern is invalid: ${parsed.error}` } : parsed;
 }
 
-function siblingFilter(parentId: string | null, typeId: string) {
-  return and(
-    parentId ? eq(locations.parentId, parentId) : isNull(locations.parentId),
-    eq(locations.typeId, typeId),
-  );
+// Labels are unique among all siblings (not per type), so "next free label"
+// has to skip the ones other types already use here.
+function siblingFilter(parentId: string | null) {
+  return parentId ? eq(locations.parentId, parentId) : isNull(locations.parentId);
 }
 
 function revalidate() {
@@ -72,7 +71,7 @@ export async function createLocations(input: {
     const siblings = await db
       .select({ label: locations.label })
       .from(locations)
-      .where(siblingFilter(input.parentId, input.typeId));
+      .where(siblingFilter(input.parentId));
     labels = nextLabels(pattern, siblings.map((s) => s.label), wanted);
     if (labels.length === 0) return { error: `No labels left in the pattern ${pattern.source}` };
   }
@@ -153,7 +152,7 @@ export async function moveLocation(input: { id: string; parentId: string | null 
       .where(eq(locations.id, input.id));
   } catch (err) {
     if (isUniqueViolation(err)) {
-      return { error: "The target already has a location with this type and label — relabel first" };
+      return { error: "The target already has a location with this label — relabel first" };
     }
     throw err;
   }

@@ -5,9 +5,12 @@ import { requireSession } from "@/lib/auth";
 import { loadLocations, loadLocationTypes } from "@/lib/locations";
 import { buildTree } from "@/lib/location-tree";
 import { partCountsByLocation } from "@/lib/location-stats";
-import { siblingLabelsByType } from "@/lib/location-siblings";
+import { siblingLabels } from "@/lib/location-siblings";
+import { buildLayout } from "@/lib/location-layout";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddLocationDialog } from "./add-location-dialog";
+import { LocationLayout } from "./location-layout";
 import { LocationTree } from "./location-tree";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +47,7 @@ export default async function LocationsPage() {
             parentId={null}
             parentLabel={null}
             types={types}
-            siblingLabels={siblingLabelsByType(locations, null)}
+            siblingLabels={siblingLabels(locations, null)}
           />
         </div>
       </div>
@@ -55,7 +58,18 @@ export default async function LocationsPage() {
           <p>No locations yet. Add your first shelf, cabinet or drawer.</p>
         </div>
       ) : (
-        <LocationTree tree={tree} partCounts={Object.fromEntries(counts)} />
+        <Tabs defaultValue="tree">
+          <TabsList>
+            <TabsTrigger value="tree">Tree</TabsTrigger>
+            <TabsTrigger value="layout">Layout</TabsTrigger>
+          </TabsList>
+          <TabsContent value="tree">
+            <LocationTree tree={tree} partCounts={Object.fromEntries(counts)} />
+          </TabsContent>
+          <TabsContent value="layout">
+            <LocationLayout layout={buildLayout(locations)} />
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );

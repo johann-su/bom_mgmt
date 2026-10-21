@@ -44,8 +44,8 @@ export function AddLocationDialog({
   parentId: string | null;
   parentLabel: string | null;
   types: LocationTypeOption[];
-  // Existing labels among the new location's would-be siblings, per type id.
-  siblingLabels: Record<string, string[]>;
+  // Existing labels among the new location's would-be siblings (any type).
+  siblingLabels: string[];
   defaultTypeId?: string;
   trigger?: React.ReactNode;
 }) {
@@ -61,7 +61,7 @@ export function AddLocationDialog({
   const type = types.find((t) => t.id === typeId);
   const parsed = type ? parsePattern(type.labelPattern) : null;
   const pattern = parsed && !("error" in parsed) ? parsed : null;
-  const existing = siblingLabels[typeId] ?? [];
+  const existing = siblingLabels;
   const bulkCount = Math.min(Math.max(1, Number(count) || 1), 200);
   const suggestions = pattern ? nextLabels(pattern, existing, mode === "bulk" ? bulkCount : 1) : [];
   // The label field shows the suggestion until the user types their own.
