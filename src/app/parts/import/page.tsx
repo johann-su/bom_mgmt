@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { requireSession } from "@/lib/auth";
+import { CsvFormat } from "./csv-format";
 import { PartImport } from "./part-import";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,10 @@ export default async function ImportPartsPage() {
         MPN (else by name) and update them; the rest become new parts. Empty cells never overwrite
         what&apos;s already there.
       </p>
-      <PartImport />
+      <div className="grid gap-6">
+        <CsvFormat />
+        <PartImport />
+      </div>
     </div>
   );
 }

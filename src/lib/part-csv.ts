@@ -66,6 +66,25 @@ const HEADER_ALIASES: Record<PartCsvField, string[]> = {
   quantity: ["quantity", "qty", "qty.", "order qty.", "order qty", "in stock", "stock", "on hand", "count"],
 };
 
+/**
+ * The importer's native layout: the header each field is recognized by, what
+ * goes in it, and an example. Feeds the format guide on /parts/import and the
+ * downloadable template, so both always match what guessPartMapping reads.
+ */
+export const PART_CSV_TEMPLATE: { field: PartCsvField; header: string; help: string; examples: [string | number, string | number] }[] = [
+  { field: "name", header: "Name", help: "Part name. Required unless an MPN is given.", examples: ["NE555 timer", "M3x8 screw"] },
+  { field: "mpn", header: "MPN", help: "Manufacturer part number. Identifies the part: a row with a known MPN updates that part.", examples: ["NE555P", ""] },
+  { field: "manufacturer", header: "Manufacturer", help: "Text.", examples: ["Texas Instruments", ""] },
+  { field: "description", header: "Description", help: "Text.", examples: ["Single precision timer, DIP-8", "ISO 4762, stainless"] },
+  { field: "category", header: "Category", help: "Category name; created if it doesn't exist yet.", examples: ["ICs", "Fasteners"] },
+  { field: "unit", header: "Unit", help: "Unit of count, e.g. pcs or m.", examples: ["pcs", "pcs"] },
+  { field: "minStock", header: "Min stock", help: "Whole number; warns when stock falls below it.", examples: [5, 50] },
+  { field: "orderUrl", header: "Order link", help: "http(s) URL of the product page.", examples: ["https://www.digikey.com/", ""] },
+  { field: "notes", header: "Notes", help: "Text.", examples: ["", ""] },
+  { field: "location", header: "Location", help: "Code of an existing location (e.g. A/1) or its full path. Needed to book stock.", examples: ["A/1", "B"] },
+  { field: "quantity", header: "Quantity", help: "Whole number of pieces at that location. Needs a Location.", examples: [10, 200] },
+];
+
 /** Column index per field; unmapped fields are absent. */
 export type PartCsvMapping = Partial<Record<PartCsvField, number>>;
 

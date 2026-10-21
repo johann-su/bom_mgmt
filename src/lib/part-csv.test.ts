@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   guessPartMapping,
+  PART_CSV_FIELDS,
+  PART_CSV_TEMPLATE,
   planPartImport,
   readPartCsv,
   sanitizeMapping,
@@ -118,4 +120,13 @@ test("min stock and order link are validated like the part form does", () => {
 test("a client-sent mapping is clamped to real, distinct columns", () => {
   assert.deepEqual(sanitizeMapping({ name: 0, mpn: 0, notes: 7, unit: -1, category: "1" }, 3), { name: 0 });
   assert.deepEqual(sanitizeMapping(null, 3), {});
+});
+
+test("the downloadable template's headers map onto every field", () => {
+  // The template and the format guide both come from PART_CSV_TEMPLATE; if a
+  // header there stops matching an alias, a filled-in template won't import.
+  const headers = PART_CSV_TEMPLATE.map((c) => c.header);
+  const mapping = guessPartMapping(headers);
+  for (const [i, c] of PART_CSV_TEMPLATE.entries()) assert.equal(mapping[c.field], i, c.header);
+  assert.equal(PART_CSV_TEMPLATE.length, PART_CSV_FIELDS.length);
 });
