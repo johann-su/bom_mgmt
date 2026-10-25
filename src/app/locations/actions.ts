@@ -39,7 +39,8 @@ function revalidate() {
 /**
  * Creates locations under `parentId` (null = top level). With a `label` it
  * creates that one location, validated against the type's pattern; without,
- * it creates `count` locations with the next free labels — "add 12 bins".
+ * it creates `count` locations with the next free labels — "add 12 bins" —
+ * named from `names` by position (missing or blank entries stay unnamed).
  */
 export async function createLocations(input: {
   parentId: string | null;
@@ -47,6 +48,7 @@ export async function createLocations(input: {
   label?: string;
   name?: string;
   count?: number;
+  names?: string[];
 }): Promise<Result & { ids?: string[] }> {
   if (!(await getSession())) return { error: "You must be signed in" };
 
@@ -82,12 +84,13 @@ export async function createLocations(input: {
     const created = await db
       .insert(locations)
       .values(
-        labels.map((label) => ({
+        labels.map((label, i) => ({
           parentId: input.parentId,
           typeId: input.typeId,
           label,
-          // A name only makes sense for a single location.
-          name: labels.length === 1 ? (input.name ?? "").trim() : "",
+          name: String(
+            input.names ? (input.names[i] ?? "") : labels.length === 1 ? (input.name ?? "") : "",
+          ).trim(),
         })),
       )
       .returning({ id: locations.id });

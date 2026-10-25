@@ -4,10 +4,10 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { pasteNames } from "@/lib/bulk-names";
 import { nextLabels, parseLabel, parsePattern } from "@/lib/label-pattern";
 import type { LocationTypeOption } from "@/lib/locations";
 import { LocationIcon } from "@/components/location-icon";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -32,7 +32,8 @@ import { createLocations } from "./actions";
 
 // Adds locations inside `parentId` (null = top level): one with a chosen
 // label (pre-filled with the next free one), or several at once with
-// consecutive labels.
+// consecutive labels and optional per-location names — pasting a list into
+// a name field fills the rows below it.
 export function AddLocationDialog({
   parentId,
   parentLabel,
@@ -56,6 +57,7 @@ export function AddLocationDialog({
   const [label, setLabel] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [count, setCount] = useState("6");
+  const [names, setNames] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
   const type = types.find((t) => t.id === typeId);
@@ -76,6 +78,16 @@ export function AddLocationDialog({
   function reset() {
     setLabel(null);
     setName("");
+    setNames([]);
+  }
+
+  function pasteInto(index: number, e: React.ClipboardEvent<HTMLInputElement>) {
+    const next = pasteNames(names, index, e.clipboardData.getData("text"));
+    if (!next) return;
+    e.preventDefault();
+    setNames(next);
+    // A longer list than rows adds rows for it, as far as the pattern allows.
+    if (next.length > bulkCount) setCount(String(Math.min(next.length, 200)));
   }
 
   function submit(e: React.FormEvent) {
@@ -84,7 +96,7 @@ export function AddLocationDialog({
       const result = await createLocations({
         parentId,
         typeId,
-        ...(mode === "single" ? { label: shownLabel, name } : { count: bulkCount }),
+        ...(mode === "single" ? { label: shownLabel, name } : { count: bulkCount, names }),
       });
       if (result.error) {
         toast.error(result.error);
@@ -199,18 +211,30 @@ export function AddLocationDialog({
                     onChange={(e) => setCount(e.target.value)}
                     className="w-28"
                   />
-                  <div className="flex flex-wrap gap-1">
-                    {suggestions.slice(0, 24).map((l) => (
-                      <Badge key={l} variant="secondary" className="font-mono">
-                        {l}
-                      </Badge>
-                    ))}
-                    {suggestions.length > 24 && (
-                      <span className="text-xs text-muted-foreground">
-                        … {suggestions.length - 24} more
-                      </span>
-                    )}
-                  </div>
+                  {suggestions.length > 0 && (
+                    <div className="grid max-h-72 gap-1.5 overflow-y-auto pr-1">
+                      <p className="text-xs text-muted-foreground">
+                        Names are optional — paste a list (one per line) to fill several.
+                      </p>
+                      {suggestions.map((l, i) => (
+                        <div key={l} className="grid grid-cols-[6rem_1fr] items-center gap-2">
+                          <span className="truncate font-mono text-sm">{l}</span>
+                          <Input
+                            aria-label={`Name for ${l}`}
+                            value={names[i] ?? ""}
+                            onChange={(e) => {
+                              const next = names.slice();
+                              next[i] = e.target.value;
+                              setNames(next);
+                            }}
+                            onPaste={(e) => pasteInto(i, e)}
+                            placeholder={i === 0 ? "e.g. Gridfinity 1x1" : undefined}
+                            className="h-8"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {suggestions.length < bulkCount && (
                     <p className="text-sm text-muted-foreground">
                       The pattern only has {suggestions.length} free label(s) left.

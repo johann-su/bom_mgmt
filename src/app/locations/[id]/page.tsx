@@ -10,7 +10,7 @@ import { requireSession } from "@/lib/auth";
 import { loadLocations, loadLocationTypes } from "@/lib/locations";
 import { ancestry, buildTree, describeAll, locationCode, subtreeIds } from "@/lib/location-tree";
 import { partCountsByLocation } from "@/lib/location-stats";
-import { siblingLabels } from "@/lib/location-siblings";
+import { siblingCycle, siblingLabels } from "@/lib/location-siblings";
 import { loadPartOptions } from "@/lib/part-options";
 import { firstImages } from "@/lib/part-images";
 import { formatQuantity } from "@/lib/format";
@@ -36,6 +36,7 @@ import { AddLocationDialog } from "../add-location-dialog";
 import { LocationTree } from "../location-tree";
 import { LocationActions } from "./location-actions";
 import { LocationLabel } from "./location-label";
+import { SiblingNav } from "./sibling-nav";
 
 export const dynamic = "force-dynamic";
 
@@ -77,6 +78,7 @@ export default async function LocationPage({ params }: Params) {
   const descendants = subtreeIds(all, id);
   // Without the location itself in the list, buildTree treats its children
   // as roots, so the nested tree starts at depth 0.
+  const cycle = siblingCycle(all, id);
   const childTree = buildTree(all.filter((l) => l.id !== id && descendants.has(l.id)));
 
   // The label: this type's template, filled with this location's data.
@@ -107,25 +109,36 @@ export default async function LocationPage({ params }: Params) {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <nav className="mb-4 flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-        <Link href="/locations" className="hover:text-foreground">
-          Locations
-        </Link>
-        {chain.map((l) => (
-          <span key={l.id} className="flex items-center gap-1">
-            <ChevronRight className="size-3.5" />
-            {l.id === id ? (
-              <span className="text-foreground">
-                {l.type.name} {l.label}
-              </span>
-            ) : (
-              <Link href={`/locations/${l.id}`} className="hover:text-foreground">
-                {l.type.name} {l.label}
-              </Link>
-            )}
-          </span>
-        ))}
-      </nav>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+          <Link href="/locations" className="hover:text-foreground">
+            Locations
+          </Link>
+          {chain.map((l) => (
+            <span key={l.id} className="flex items-center gap-1">
+              <ChevronRight className="size-3.5" />
+              {l.id === id ? (
+                <span className="text-foreground">
+                  {l.type.name} {l.label}
+                </span>
+              ) : (
+                <Link href={`/locations/${l.id}`} className="hover:text-foreground">
+                  {l.type.name} {l.label}
+                </Link>
+              )}
+            </span>
+          ))}
+        </nav>
+        {cycle && (
+          <SiblingNav
+            prev={{ id: cycle.prev.id, title: siblingTitle(cycle.prev) }}
+            next={{ id: cycle.next.id, title: siblingTitle(cycle.next) }}
+            index={cycle.index}
+            total={cycle.total}
+            typeName={location.type.name}
+          />
+        )}
+      </div>
 
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -279,4 +292,8 @@ export default async function LocationPage({ params }: Params) {
 function nextTypeId(types: { id: string }[], currentTypeId: string): string | undefined {
   const index = types.findIndex((t) => t.id === currentTypeId);
   return types[index + 1]?.id ?? types[index]?.id;
+}
+
+function siblingTitle(l: { label: string; name: string; type: { name: string } }) {
+  return `${l.type.name} ${l.label}${l.name ? ` · ${l.name}` : ""}`;
 }
