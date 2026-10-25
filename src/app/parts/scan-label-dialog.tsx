@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Camera, PackagePlus, ScanBarcode } from "lucide-react";
 import type { LocationOption } from "@/lib/location-tree";
 import { parseLabelBarcode, type ScannedLabel } from "@/lib/label-barcode";
+import { canUseCamera, createBarcodeDetector, type Detector } from "@/lib/barcode-detector";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -161,7 +162,7 @@ export function ScanLabelDialog({ locations }: { locations: LocationOption[] }) 
                 }}
               />
             ) : (
-              hasBarcodeDetector() && (
+              canUseCamera() && (
                 <Button variant="outline" onClick={() => setCamera(true)}>
                   <Camera className="size-4" />
                   Use camera
@@ -256,20 +257,8 @@ function controlCharFor(e: React.KeyboardEvent): string | null {
 
 // --- Camera -------------------------------------------------------------------
 
-// The Shape Detection API isn't in TypeScript's DOM lib yet.
-type BarcodeDetectorLike = {
-  detect(source: HTMLVideoElement): Promise<{ rawValue: string }[]>;
-};
-declare const BarcodeDetector: {
-  new (options: { formats: string[] }): BarcodeDetectorLike;
-};
-
-function hasBarcodeDetector() {
-  return typeof window !== "undefined" && "BarcodeDetector" in window;
-}
-
-// Reads a Data Matrix/QR code from the rear camera with the browser's
-// BarcodeDetector (Chrome/Edge on Android and macOS, Safari on iOS 17+).
+// Reads a Data Matrix/QR code from the rear camera — with the browser's own
+// BarcodeDetector where there is one, else the ZXing ponyfill (iOS/iPadOS).
 function CameraScanner({
   onResult,
   onError,
@@ -288,10 +277,10 @@ function CameraScanner({
     let stream: MediaStream | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
-    const detector = new BarcodeDetector({ formats: ["data_matrix", "qr_code"] });
+    let detector: Detector | null = null;
 
     async function tick() {
-      if (stopped || !video.current) return;
+      if (stopped || !video.current || !detector) return;
       try {
         const [code] = await detector.detect(video.current);
         if (code?.rawValue && !stopped) return callbacks.current.onResult(code.rawValue);
@@ -301,16 +290,30 @@ function CameraScanner({
       timer = setTimeout(tick, 250);
     }
 
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" } })
-      .then(async (s) => {
+    // Open the camera and load the detector in parallel; the ZXing .wasm is
+    // ~1 MB on first use.
+    Promise.all([
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then((s) => {
         stream = s;
-        if (stopped || !video.current) return s.getTracks().forEach((t) => t.stop());
+        if (stopped) s.getTracks().forEach((t) => t.stop());
+        return s;
+      }),
+      createBarcodeDetector(["data_matrix", "qr_code"]),
+    ])
+      .then(async ([s, d]) => {
+        if (stopped || !video.current) return;
+        detector = d;
         video.current.srcObject = s;
         await video.current.play();
         tick();
       })
-      .catch(() => callbacks.current.onError("Could not open the camera"));
+      .catch((err: unknown) => {
+        if (stopped) return;
+        const denied = err instanceof DOMException && err.name === "NotAllowedError";
+        callbacks.current.onError(
+          denied ? "Camera access was denied — allow it in the browser's site settings" : "Could not open the camera",
+        );
+      });
 
     return () => {
       stopped = true;

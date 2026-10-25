@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Open_Sans, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
@@ -20,6 +20,17 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: { default: "Bin Vault", template: "%s · Bin Vault" },
   description: "Self-hosted inventory and BOM management for components",
+  // iOS ignores the manifest's display mode; this opens the home-screen app
+  // without Safari's chrome. The icon comes from app/apple-icon.png.
+  appleWebApp: { capable: true, title: "Bin Vault", statusBarStyle: "default" },
+};
+
+// Tints the status bar / title bar to match the page background.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eeeeee" },
+    { media: "(prefers-color-scheme: dark)", color: "#222225" },
+  ],
 };
 
 export default async function RootLayout({

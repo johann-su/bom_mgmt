@@ -16,6 +16,8 @@ RUN addgroup -S nodejs && adduser -S nextjs -G nodejs && apk add --no-cache su-e
 
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# standalone leaves out public/ (label fonts, PWA icons)
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 # SQL migrations + runner, applied on boot before the server starts
 COPY --from=builder --chown=nextjs:nodejs /app/drizzle ./drizzle

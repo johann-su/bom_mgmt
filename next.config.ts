@@ -6,10 +6,12 @@ const dev = process.env.NODE_ENV !== "production";
 // Everything the app loads is same-origin: Tailwind ships a static
 // stylesheet, next/font self-hosts, and uploaded images come from
 // /api/files. 'unsafe-inline' stays because Next inlines its bootstrap
-// scripts and React inlines style attributes.
+// scripts and React inlines style attributes. 'wasm-unsafe-eval' lets the
+// camera scanner's ZXing fallback (src/lib/barcode-detector.ts) instantiate
+// its WebAssembly; it doesn't allow eval() of JavaScript.
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${dev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
@@ -34,7 +36,8 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+          // The camera is ours alone, for scanning labels; no embedded frame gets it.
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
         ],
       },
     ];
