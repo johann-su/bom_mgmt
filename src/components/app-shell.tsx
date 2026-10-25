@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { HeaderSearch } from "@/components/header-search";
+import { ScanLocationButton } from "@/components/scan-location-button";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { APP_NAME, BrandMark } from "@/components/brand-mark";
 
@@ -40,11 +41,14 @@ export function AppShell({
       <SidebarInset>
         <header className="sticky top-0 z-40 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
           <SidebarTrigger />
-          <div className="ml-auto w-full max-w-sm">
-            {/* useSearchParams needs a boundary to render outside a page. */}
-            <Suspense>
-              <HeaderSearch />
-            </Suspense>
+          <div className="ml-auto flex w-full max-w-sm items-center gap-1">
+            <div className="flex-1">
+              {/* useSearchParams needs a boundary to render outside a page. */}
+              <Suspense>
+                <HeaderSearch />
+              </Suspense>
+            </div>
+            <ScanLocationButton />
           </div>
         </header>
         <main className="flex-1">{children}</main>

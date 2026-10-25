@@ -7,6 +7,8 @@ import { locations, locationTypes, stock } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { nextLabels, parseLabel, parsePattern, type ParsedPattern } from "@/lib/label-pattern";
 import { subtreeIds } from "@/lib/location-tree";
+import { loadLocationOptions } from "@/lib/locations";
+import { resolveScannedLocation } from "@/lib/location-scan";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { SLOT_NAME_RE } from "@/lib/label-template";
 import { parseSlotValue, parseSlots, storedSlots, withSlot } from "@/lib/label-slots";
@@ -225,4 +227,11 @@ export async function deleteLocation(input: { id: string }): Promise<Result & { 
   });
   revalidate();
   return { parentId: location.parentId };
+}
+
+/** The location a scanned label names (by code, link, id, path or name). */
+export async function findLocationByScan(text: string): Promise<Result & { id?: string }> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const match = resolveScannedLocation(await loadLocationOptions(), String(text));
+  return match ? { id: match.id } : { error: `No location matches “${String(text).trim().slice(0, 60)}”` };
 }

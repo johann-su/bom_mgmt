@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Camera, PackagePlus, ScanBarcode } from "lucide-react";
 import type { LocationOption } from "@/lib/location-tree";
 import { parseLabelBarcode, type ScannedLabel } from "@/lib/label-barcode";
-import { canUseCamera, createBarcodeDetector, type Detector } from "@/lib/barcode-detector";
+import { canUseCamera } from "@/lib/barcode-detector";
+import { CameraScanner } from "@/components/camera-scanner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +24,9 @@ import { Label } from "@/components/ui/label";
 import { LocationPicker } from "@/components/location-picker";
 import { findPartByLabel } from "./actions";
 import { changeStock } from "./stock-actions";
+
+// Distributor bag labels are Data Matrix (EIGP 114) or QR (LCSC).
+const LABEL_FORMATS = ["data_matrix", "qr_code"];
 
 type Match = { id: string; name: string; unit: string; mpn: string } | null;
 
@@ -152,6 +156,7 @@ export function ScanLabelDialog({ locations }: { locations: LocationOption[] }) 
             </form>
             {camera ? (
               <CameraScanner
+                formats={LABEL_FORMATS}
                 onResult={(text) => {
                   setCamera(false);
                   handleScan(text);
@@ -253,74 +258,4 @@ function controlCharFor(e: React.KeyboardEvent): string | null {
   if (e.code === "Digit6" || e.key === "^" || e.key === "6") return "\x1e";
   if (e.code === "KeyD" || e.key.toLowerCase() === "d") return "\x04";
   return null;
-}
-
-// --- Camera -------------------------------------------------------------------
-
-// Reads a Data Matrix/QR code from the rear camera — with the browser's own
-// BarcodeDetector where there is one, else the ZXing ponyfill (iOS/iPadOS).
-function CameraScanner({
-  onResult,
-  onError,
-}: {
-  onResult: (text: string) => void;
-  onError: (message: string) => void;
-}) {
-  const video = useRef<HTMLVideoElement>(null);
-  // Latest callbacks without restarting the camera when the parent re-renders.
-  const callbacks = useRef({ onResult, onError });
-  useEffect(() => {
-    callbacks.current = { onResult, onError };
-  });
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let stopped = false;
-    let detector: Detector | null = null;
-
-    async function tick() {
-      if (stopped || !video.current || !detector) return;
-      try {
-        const [code] = await detector.detect(video.current);
-        if (code?.rawValue && !stopped) return callbacks.current.onResult(code.rawValue);
-      } catch {
-        // A frame that isn't ready yet; try the next one.
-      }
-      timer = setTimeout(tick, 250);
-    }
-
-    // Open the camera and load the detector in parallel; the ZXing .wasm is
-    // ~1 MB on first use.
-    Promise.all([
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then((s) => {
-        stream = s;
-        if (stopped) s.getTracks().forEach((t) => t.stop());
-        return s;
-      }),
-      createBarcodeDetector(["data_matrix", "qr_code"]),
-    ])
-      .then(async ([s, d]) => {
-        if (stopped || !video.current) return;
-        detector = d;
-        video.current.srcObject = s;
-        await video.current.play();
-        tick();
-      })
-      .catch((err: unknown) => {
-        if (stopped) return;
-        const denied = err instanceof DOMException && err.name === "NotAllowedError";
-        callbacks.current.onError(
-          denied ? "Camera access was denied — allow it in the browser's site settings" : "Could not open the camera",
-        );
-      });
-
-    return () => {
-      stopped = true;
-      clearTimeout(timer);
-      stream?.getTracks().forEach((t) => t.stop());
-    };
-  }, []);
-
-  return <video ref={video} muted playsInline className="aspect-video w-full rounded-md bg-black object-cover" />;
 }
