@@ -7,7 +7,9 @@ import type { LocationOption } from "@/lib/location-tree";
 export function matchLocations(locations: LocationOption[], query: string): LocationOption[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const compact = (s: string) => s.toLowerCase().replace(/[\s/·\-_.]+/g, "");
+  // Anything but letters and digits counts as a separator, whichever one
+  // this instance uses (or none — "A1" is already compact).
+  const compact = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
   const qCompact = compact(q);
   const exact: LocationOption[] = [];
   const partial: LocationOption[] = [];

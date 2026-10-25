@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { MapPin, Tag } from "lucide-react";
 import { requireSession } from "@/lib/auth";
 import { loadLocations, loadLocationTypes } from "@/lib/locations";
@@ -23,6 +24,8 @@ export default async function LocationsPage() {
     loadLocationTypes(),
     partCountsByLocation(),
   ]);
+  // No types means nothing can be created yet — run the wizard first.
+  if (types.length === 0) redirect("/setup");
   const tree = buildTree(locations);
 
   return (

@@ -34,11 +34,12 @@ sidebar shell).
   | `{N:0-9}`, `{A:A-F}` | bounded range — counters roll over like an odometer | |
   | literal text | anything outside braces; `{{` / `}}` for braces | `S-{NN}` → S-01 |
 
-  So the README example is Shelf `{A}`, Box `{N}`, Bin `{R}` (seeded on a
-  fresh database), and an alpha-numeric grid is `{A}{N:1-6}` → A1 … A6, B1 ….
+  So the README example is Shelf `{A}`, Box `{N}`, Bin `{R}` (one of the
+  presets in the first-run setup wizard), and an alpha-numeric grid is `{A}{N:1-6}` → A1 … A6, B1 ….
   Adding a location suggests the next free label; "Several" creates N at once.
   A location's code joins the labels: **A/1/IV**, and search finds it from
-  `a1iv` or `A-1-IV` too.
+  `a1iv` or `A-1-IV` too. The separator is configurable (Settings → Location
+  types), including none at all — box `A`'s bin `1` is then just **A1**.
 - **Parts** with category, manufacturer/MPN, unit, minimum stock, free-form
   attributes, notes, images and datasheets.
 - **Stock** per (part, location): add, remove, count (stock-take), move.
@@ -61,9 +62,13 @@ sidebar shell).
 cp .env.example .env            # then set BETTER_AUTH_SECRET (openssl rand -base64 32)
 docker compose up -d            # Postgres (host port 5433) + MinIO (9000, console 9001)
 npm install
-npm run db:migrate              # applies ./drizzle and seeds Shelf/Box/Bin
+npm run db:migrate              # applies ./drizzle
 npm run dev                     # http://localhost:3000 — sign up; first account is admin
 ```
+
+On a fresh database the first sign-in lands in a setup wizard (`/setup`): pick
+or build the location hierarchy and its label patterns, choose a printable
+label per level, and optionally create the first shelves/boxes/bins.
 
 Full stack in Docker (app included): `docker compose --profile app up -d --build`.
 

@@ -6,6 +6,9 @@ import { db } from "@/db";
 import { locations, locationTypes } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { parseLabel, parsePattern } from "@/lib/label-pattern";
+import { describeAll, duplicateCodes, validateSeparator } from "@/lib/location-tree";
+import { loadLocations } from "@/lib/locations";
+import { saveCodeSeparator } from "@/lib/settings";
 import { LOCATION_ICONS } from "@/lib/location-icons";
 import { isUniqueViolation } from "@/lib/db-errors";
 
@@ -120,5 +123,27 @@ export async function moveLocationType(input: { id: string; direction: -1 | 1 })
     }
   });
   revalidate();
+  return {};
+}
+
+/**
+ * Changes what joins labels into codes, for every location at once. Refused
+ * when two existing locations would end up with the same code (1›11 and
+ * 11›1 without a separator), since codes are how bins are searched and read
+ * off labels.
+ */
+export async function updateCodeSeparator(input: { separator: string }): Promise<Result> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const valid = validateSeparator(input.separator);
+  if ("error" in valid) return valid;
+  const codes = describeAll(await loadLocations(), valid.separator).map((l) => l.code);
+  const dupes = duplicateCodes(codes);
+  if (dupes.length > 0) {
+    const sample = dupes.slice(0, 3).map((c) => `"${c}"`).join(", ");
+    return { error: `Several locations would share a code (${sample}) — keep a separator` };
+  }
+  await saveCodeSeparator(valid.separator);
+  // Codes show up on nearly every page (pickers, stock lists, labels).
+  revalidatePath("/", "layout");
   return {};
 }

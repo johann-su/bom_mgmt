@@ -2,6 +2,7 @@ import { asc } from "drizzle-orm";
 import { db } from "@/db";
 import { locationTypes } from "@/db/schema";
 import { describeAll, type FlatLocation } from "@/lib/location-tree";
+import { getCodeSeparator } from "@/lib/settings";
 
 // Every location with its type. A workshop has hundreds of locations, not
 // millions, so pages load them all once and work on the tree in memory
@@ -29,5 +30,12 @@ export type LocationTypeOption = Awaited<ReturnType<typeof loadLocationTypes>>[n
 
 // Code/path for every location, for pickers.
 export async function loadLocationOptions() {
-  return describeAll(await loadLocations());
+  const [locations, separator] = await Promise.all([loadLocations(), getCodeSeparator()]);
+  return describeAll(locations, separator);
+}
+
+// False on a fresh database — the cue to send the user through /setup.
+export async function hasLocationTypes(): Promise<boolean> {
+  const row = await db.query.locationTypes.findFirst({ columns: { id: true } });
+  return row !== undefined;
 }

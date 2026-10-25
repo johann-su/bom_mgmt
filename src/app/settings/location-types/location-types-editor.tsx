@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
-import { describePattern, nextLabels, parsePattern } from "@/lib/label-pattern";
+import { PATTERN_PRESETS, describePattern, nextLabels, parsePattern } from "@/lib/label-pattern";
 import { LOCATION_ICONS } from "@/lib/location-icons";
 import { LocationIcon } from "@/components/location-icon";
 import { Badge } from "@/components/ui/badge";
@@ -41,14 +41,6 @@ export type LocationTypeRow = {
   icon: string;
   usage: number;
 };
-
-const PRESETS = [
-  { label: "Letters", pattern: "{A}" },
-  { label: "Numbers", pattern: "{N}" },
-  { label: "Roman", pattern: "{R}" },
-  { label: "Padded", pattern: "{NN}" },
-  { label: "Grid", pattern: "{A}{N:1-6}" },
-];
 
 function preview(pattern: string): { labels: string[]; description: string } | { error: string } {
   const parsed = parsePattern(pattern);
@@ -237,7 +229,7 @@ function LocationTypeDialog({
               required
             />
             <div className="flex flex-wrap gap-1">
-              {PRESETS.map((preset) => (
+              {PATTERN_PRESETS.map((preset) => (
                 <Button
                   key={preset.pattern}
                   type="button"

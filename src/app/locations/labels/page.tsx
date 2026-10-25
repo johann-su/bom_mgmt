@@ -10,6 +10,7 @@ import { isUuid } from "@/lib/utils";
 import { loadLocations, loadLocationTypes } from "@/lib/locations";
 import { ancestry, buildTree, locationCode, subtreeIds, type LocationNode } from "@/lib/location-tree";
 import { loadTemplateOptions } from "@/lib/label-templates";
+import { getCodeSeparator } from "@/lib/settings";
 import { locationVariables, templateForType } from "@/lib/label-template";
 import { LabelPrinter, type PrintItem } from "./label-printer";
 
@@ -27,11 +28,12 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
   const { root, only, type } = await searchParams;
   const rootId = typeof root === "string" && isUuid(root) ? root : null;
 
-  const [all, descriptions, templates, types] = await Promise.all([
+  const [all, descriptions, templates, types, separator] = await Promise.all([
     loadLocations(),
     db.select({ id: locations.id, description: locations.description }).from(locations),
     loadTemplateOptions(),
     loadLocationTypes(),
+    getCodeSeparator(),
   ]);
   const byId = new Map(all.map((l) => [l.id, l]));
   if (rootId && !byId.has(rootId)) notFound();
@@ -51,6 +53,7 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
         vars: locationVariables(chain, {
           url: appUrl(`/locations/${node.id}`).toString(),
           description: descriptionOf.get(node.id) ?? "",
+          separator,
         }),
       });
       walk(node.children);
@@ -72,7 +75,7 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
   const initialTemplate = typeId
     ? templateForType(templates, types.find((t) => t.id === typeId)?.labelTemplateId ?? null).key
     : templates[0].key;
-  const rootCode = rootId ? locationCode(ancestry(byId, rootId)) : null;
+  const rootCode = rootId ? locationCode(ancestry(byId, rootId), separator) : null;
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">

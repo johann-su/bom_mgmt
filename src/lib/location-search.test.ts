@@ -26,3 +26,10 @@ test("names and readable paths are searched too", () => {
   assert.deepEqual(matchLocations(all, "fasten").map((l) => l.id), ["a1"]);
   assert.ok(matchLocations(all, "bin iv").some((l) => l.id === "a1iv"));
 });
+
+test("any punctuation separator is ignored, and codes without one match too", () => {
+  // The instance's separator is configurable — ":" or none at all.
+  const custom = [loc("x", "A:1:IV", "Shelf A › Box 1 › Bin IV"), loc("y", "B2", "Shelf B › Box 2")];
+  assert.equal(matchLocations(custom, "a1iv")[0].id, "x");
+  assert.equal(matchLocations(custom, "B/2")[0].id, "y");
+});

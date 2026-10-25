@@ -16,7 +16,41 @@ export type FlatLocation = {
 
 export type LocationNode = FlatLocation & { children: LocationNode[]; depth: number };
 
+// What joins the labels of a code — instance-wide, stored in app_settings
+// (src/lib/settings.ts). "" is allowed: box A's bin 1 is then just "A1".
 export const CODE_SEPARATOR = "/";
+export const MAX_SEPARATOR_LENGTH = 3;
+
+export const SEPARATOR_PRESETS = [
+  { label: "Slash", value: "/" },
+  { label: "Dash", value: "-" },
+  { label: "Dot", value: "." },
+  { label: "None", value: "" },
+];
+
+/**
+ * Checks a code separator. Letters, digits and braces are refused: they'd
+ * read as part of a label ("A" + "x" + "1" vs. a label "Ax1"). Whitespace is
+ * kept as typed — a space is a legitimate separator.
+ */
+export function validateSeparator(value: unknown): { separator: string } | { error: string } {
+  if (typeof value !== "string") return { error: "Invalid separator" };
+  if (value.length > MAX_SEPARATOR_LENGTH) {
+    return { error: `The separator can be at most ${MAX_SEPARATOR_LENGTH} characters` };
+  }
+  if (/[\p{L}\p{N}{}]/u.test(value)) {
+    return { error: "The separator can't contain letters, digits or braces" };
+  }
+  return { separator: value };
+}
+
+/** Codes that more than one entry shares — e.g. 1›11 and 11›1 both "111" without a separator. */
+export function duplicateCodes(codes: string[]): string[] {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const code of codes) (seen.has(code) ? dupes : seen).add(code);
+  return [...dupes];
+}
 
 function patternCache() {
   const cache = new Map<string, ParsedPattern | null>();
@@ -76,8 +110,8 @@ export function ancestry<T extends { id: string; parentId: string | null }>(
   return chain;
 }
 
-export function locationCode(chain: { label: string }[]): string {
-  return chain.map((l) => l.label).join(CODE_SEPARATOR);
+export function locationCode(chain: { label: string }[], separator = CODE_SEPARATOR): string {
+  return chain.map((l) => l.label).join(separator);
 }
 
 export function locationPath(chain: { label: string; type: { name: string } }[]): string {
@@ -105,7 +139,7 @@ export function subtreeIds(
 }
 
 /** Code + path for every location, for pickers and search. */
-export function describeAll(locations: FlatLocation[]) {
+export function describeAll(locations: FlatLocation[], separator = CODE_SEPARATOR) {
   const byId = new Map(locations.map((l) => [l.id, l]));
   const pattern = patternCache();
   return locations
@@ -113,7 +147,7 @@ export function describeAll(locations: FlatLocation[]) {
       const chain = ancestry(byId, l.id);
       return {
         id: l.id,
-        code: locationCode(chain),
+        code: locationCode(chain, separator),
         path: locationPath(chain),
         name: l.name,
         chain,

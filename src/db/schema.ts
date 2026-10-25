@@ -138,6 +138,24 @@ export const labelTemplates = pgTable("label_templates", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// --- Instance settings ---
+//
+// One row (id = 1, enforced by the CHECK) of preferences that apply to the
+// whole instance. Read via src/lib/settings.ts, which falls back to the
+// defaults while the row doesn't exist yet.
+
+export const appSettings = pgTable(
+  "app_settings",
+  {
+    id: integer("id").primaryKey().default(1),
+    // Joins labels into a location code: "/" → A/1/IV, "" → A1IV. See
+    // validateSeparator in src/lib/location-tree.ts.
+    codeSeparator: text("code_separator").notNull().default("/"),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [check("app_settings_singleton", sql`${t.id} = 1`)],
+);
+
 // --- Parts ---
 
 export const categories = pgTable("categories", {

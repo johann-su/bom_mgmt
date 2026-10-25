@@ -389,3 +389,13 @@ export function describePattern(pattern: ParsedPattern): string {
     })
     .join(", then ");
 }
+
+/** Common patterns, offered as one-click choices next to the pattern input. */
+export const PATTERN_PRESETS = [
+  { label: "Letters", pattern: "{A}" },
+  { label: "Lowercase", pattern: "{a}" },
+  { label: "Numbers", pattern: "{N}" },
+  { label: "Roman", pattern: "{R}" },
+  { label: "Padded", pattern: "{NN}" },
+  { label: "Grid", pattern: "{A}{N:1-6}" },
+];

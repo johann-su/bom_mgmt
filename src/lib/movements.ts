@@ -4,13 +4,14 @@ import { stock, stockMovements } from "@/db/schema";
 import type { MovementKind } from "@/lib/stock";
 import { loadLocations } from "@/lib/locations";
 import { ancestry, locationCode } from "@/lib/location-tree";
+import { getCodeSeparator } from "@/lib/settings";
 
 // Location codes ("A/1/IV") by id, frozen into movement rows so history stays
 // readable after a location is renamed or deleted.
 export async function locationCodes(): Promise<Map<string, string>> {
-  const all = await loadLocations();
+  const [all, separator] = await Promise.all([loadLocations(), getCodeSeparator()]);
   const byId = new Map(all.map((l) => [l.id, l]));
-  return new Map(all.map((l) => [l.id, locationCode(ancestry(byId, l.id))]));
+  return new Map(all.map((l) => [l.id, locationCode(ancestry(byId, l.id), separator)]));
 }
 
 /**

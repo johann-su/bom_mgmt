@@ -16,6 +16,7 @@ import { firstImages } from "@/lib/part-images";
 import { formatQuantity } from "@/lib/format";
 import { appUrl } from "@/lib/app-url";
 import { loadTemplateOptions } from "@/lib/label-templates";
+import { getCodeSeparator } from "@/lib/settings";
 import { locationVariables, templateForType } from "@/lib/label-template";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,9 +44,9 @@ type Params = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   if (!isUuid(id)) return {};
-  const all = await loadLocations();
+  const [all, separator] = await Promise.all([loadLocations(), getCodeSeparator()]);
   const byId = new Map(all.map((l) => [l.id, l]));
-  return byId.has(id) ? { title: locationCode(ancestry(byId, id)) } : {};
+  return byId.has(id) ? { title: locationCode(ancestry(byId, id), separator) } : {};
 }
 
 export default async function LocationPage({ params }: Params) {
@@ -69,8 +70,9 @@ export default async function LocationPage({ params }: Params) {
     columns: { description: true },
   });
   const chain = ancestry(byId, id);
-  const code = locationCode(chain);
-  const options = describeAll(all);
+  const separator = await getCodeSeparator();
+  const code = locationCode(chain, separator);
+  const options = describeAll(all, separator);
   const descendants = subtreeIds(all, id);
   // Without the location itself in the list, buildTree treats its children
   // as roots, so the nested tree starts at depth 0.
@@ -158,6 +160,7 @@ export default async function LocationPage({ params }: Params) {
         vars={locationVariables(chain, {
           url: appUrl(`/locations/${id}`).toString(),
           description: details?.description ?? "",
+          separator,
         })}
         type={{ id: location.type.id, name: location.type.name }}
         current={label}

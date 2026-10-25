@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { count } from "drizzle-orm";
 import { ClipboardList, MapPin, Package, ShoppingCart, TriangleAlert } from "lucide-react";
 import { db } from "@/db";
 import { boms, locations, parts } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
+import { hasLocationTypes } from "@/lib/locations";
 import { listParts } from "@/lib/part-queries";
 import { recentMovements } from "@/lib/movement-queries";
 import { formatQuantity } from "@/lib/format";
@@ -14,6 +16,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const session = await requireSession();
+  // A fresh instance starts in the setup wizard instead of an empty dashboard.
+  if (!(await hasLocationTypes())) redirect("/setup");
   const [[partCount], [locationCount], [bomCount], low, movements] = await Promise.all([
     db.select({ value: count() }).from(parts),
     db.select({ value: count() }).from(locations),

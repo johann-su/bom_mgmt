@@ -1,6 +1,7 @@
-// Applies the SQL migrations in ./drizzle and seeds the default location
-// types on a fresh database. Uses only `pg` so it can run inside the Next.js
-// standalone output (the Docker image runs it before starting the server).
+// Applies the SQL migrations in ./drizzle. Uses only `pg` so it can run inside
+// the Next.js standalone output (the Docker image runs it before starting the
+// server). Nothing is seeded: a fresh database gets its location types and
+// labels from the first-run wizard at /setup.
 import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -9,14 +10,6 @@ const require = createRequire(import.meta.url);
 const { Pool } = require("pg");
 
 const MIGRATIONS_DIR = path.join(process.cwd(), "drizzle");
-
-// The README's example hierarchy — alpha shelves, numeric boxes, roman bins.
-// Only seeded while no type exists, so renaming or deleting them sticks.
-const DEFAULT_LOCATION_TYPES = [
-  { name: "Shelf", pattern: "{A}", icon: "shelf" },
-  { name: "Box", pattern: "{N}", icon: "box" },
-  { name: "Bin", pattern: "{R}", icon: "bin" },
-];
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -57,16 +50,6 @@ async function main() {
       }
     }
 
-    const { rowCount: typeCount } = await client.query("SELECT 1 FROM location_types LIMIT 1");
-    if (typeCount === 0) {
-      for (const [position, type] of DEFAULT_LOCATION_TYPES.entries()) {
-        await client.query(
-          "INSERT INTO location_types (name, label_pattern, icon, position) VALUES ($1, $2, $3, $4)",
-          [type.name, type.pattern, type.icon, position],
-        );
-      }
-      console.log("Seeded default location types");
-    }
     console.log("Database is up to date");
   } finally {
     client.release();

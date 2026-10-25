@@ -152,17 +152,17 @@ export function unknownVariables(template: LabelTemplate): string[] {
  */
 export function locationVariables(
   chain: { id: string; label: string; name: string; type: { name: string } }[],
-  extra: { url: string; description?: string },
+  extra: { url: string; description?: string; separator?: string },
 ): LabelVariables {
   const self = chain[chain.length - 1];
   return {
-    code: locationCode(chain),
+    code: locationCode(chain, extra.separator),
     label: self?.label ?? "",
     type: self?.type.name ?? "",
     name: self?.name ?? "",
     description: extra.description ?? "",
     path: locationPath(chain),
-    parent: locationCode(chain.slice(0, -1)),
+    parent: locationCode(chain.slice(0, -1), extra.separator),
     url: extra.url,
     id: self?.id ?? "",
   };
