@@ -38,6 +38,7 @@ import {
   SYMBOLOGIES,
   graphicBox,
   parseTemplate,
+  slotName,
   unknownVariables,
   type LabelElement,
   type LabelTemplate,
@@ -46,6 +47,7 @@ import {
   type Symbology,
 } from "@/lib/label-template";
 import { renderLabelBody } from "@/lib/label-render";
+import { applySlots, freeSlotName, slotConflicts, type LabelSlots } from "@/lib/label-slots";
 import { alignElements, distributeElements, type Alignment } from "@/lib/label-snap";
 import { moveElements, restack, type Restack } from "@/lib/label-order";
 import { parseClipboard, placePasted, serializeElements } from "@/lib/label-clipboard";
@@ -180,6 +182,7 @@ function ColorField({
 }
 
 function elementSummary(el: LabelElement) {
+  if ((el.kind === "text" || el.kind === "graphic") && el.slot) return `Slot: ${el.slot}`;
   if (el.kind === "frame") return "Frame";
   if (el.kind === "graphic") return el.name ? `Graphic: ${el.name}` : "Graphic";
   if (el.kind === "code") return `${SYMBOLOGIES[el.symbology].name}: ${el.text || "—"}`;
@@ -190,17 +193,20 @@ function elementSummary(el: LabelElement) {
  * The label editor: live canvas plus label/paper and element panels. Used on
  * its own page (Settings → Label templates) and in the location page's
  * "Edit label" dialog, which previews with that location's real data and
- * assigns the saved template to the location's type.
+ * assigns the saved template to the location's type (and previews that
+ * location's own slot values).
  */
 export function LabelDesigner({
   initial,
   vars = SAMPLE_VARIABLES,
+  slots,
   assignToTypeId,
   notice,
   onSaved,
 }: {
   initial: Initial;
   vars?: LabelVariables;
+  slots?: LabelSlots;
   assignToTypeId?: string;
   // Shown above the canvas, e.g. "Changes apply to every Bin".
   notice?: React.ReactNode;
@@ -211,6 +217,8 @@ export function LabelDesigner({
   const [name, setName] = useState(initial.name);
   const [history, setHistory] = useState(() => createHistory(initial.template));
   const template = history.present;
+  // What the canvas shows: the template with the previewed location's slot values.
+  const previewed = useMemo(() => applySlots(template, slots), [template, slots]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [grid, setGrid] = useState("0.5");
   const [snapToObjects, setSnapToObjects] = useState(true);
@@ -220,7 +228,7 @@ export function LabelDesigner({
   const selection = template.elements.filter((e) => selectedIds.includes(e.id));
   const selected = selection.length === 1 ? selection[0] : null;
   const validation = useMemo(() => parseTemplate(template), [template]);
-  const renderErrors = useMemo(() => renderLabelBody(template, vars).errors, [template, vars]);
+  const renderErrors = useMemo(() => renderLabelBody(previewed, vars).errors, [previewed, vars]);
   const unknown = useMemo(() => unknownVariables(template), [template]);
   const presetIndex = SHEET_PRESETS.findIndex(
     (p) =>
@@ -542,6 +550,7 @@ export function LabelDesigner({
   const problems = [
     ...("error" in validation ? [validation.error] : []),
     ...unknown.map((v) => `Unknown variable {{${v}}}`),
+    ...slotConflicts(template).map((v) => `Slot “${v}” is used by both a text and a graphic`),
     ...renderErrors,
   ];
 
@@ -623,6 +632,7 @@ export function LabelDesigner({
         >
           <LabelCanvas
             template={template}
+            previewed={previewed}
             vars={vars}
             selectedIds={selectedIds}
             grid={Number(grid)}
@@ -858,6 +868,53 @@ export function LabelDesigner({
                 </div>
                 {renderArrange([selected])}
               </div>
+
+              {(selected.kind === "text" || selected.kind === "graphic") && (
+                <div className="grid gap-1.5 rounded-md border p-2">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!selected.slot}
+                      onChange={(e) =>
+                        updateElement(selected.id, {
+                          slot: e.target.checked
+                            ? freeSlotName(template, selected.kind === "graphic" ? "symbol" : "text")
+                            : undefined,
+                        })
+                      }
+                      className="size-4 accent-primary"
+                    />
+                    Each location can fill this in
+                  </label>
+                  {selected.slot !== undefined && (
+                    <div className="grid gap-1">
+                      <Label htmlFor="element-slot" className="text-xs text-muted-foreground">
+                        Slot name
+                      </Label>
+                      <Input
+                        id="element-slot"
+                        value={selected.slot}
+                        onChange={(e) =>
+                          updateElement(selected.id, {
+                            slot: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 32),
+                          })
+                        }
+                        onBlur={() =>
+                          updateElement(selected.id, {
+                            slot: slotName(selected.slot ?? "") || freeSlotName(template, "slot"),
+                          })
+                        }
+                        className="h-8 font-mono text-sm"
+                      />
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    {selected.slot
+                      ? `This ${selected.kind === "graphic" ? "graphic" : "text"} is the default; a location can replace or hide it from its page. Elements with the same slot name show the same value.`
+                      : "Lets one bin show its own symbol or note while the layout stays shared."}
+                  </p>
+                </div>
+              )}
 
               {selected.kind === "graphic" && (
                 <div className="grid gap-2">

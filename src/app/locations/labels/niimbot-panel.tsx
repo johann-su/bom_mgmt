@@ -8,7 +8,8 @@ import type {
   NiimbotSerialClientConnectOptions,
   PrintTaskName,
 } from "@mmote/niimbluelib";
-import { pageSize, type LabelTemplate, type LabelVariables } from "@/lib/label-template";
+import { pageSize, type LabelTemplate } from "@/lib/label-template";
+import type { LabelData } from "@/lib/label-slots";
 import { renderPages } from "@/lib/label-render";
 import { svgToCanvas } from "@/lib/label-export";
 import {
@@ -83,7 +84,7 @@ export function NiimbotPanel({
   labels,
 }: {
   template: LabelTemplate;
-  labels: LabelVariables[];
+  labels: LabelData[];
 }) {
   const support = useSupport();
   const lib = useRef<Lib | null>(null);

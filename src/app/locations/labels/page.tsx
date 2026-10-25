@@ -12,6 +12,7 @@ import { ancestry, buildTree, locationCode, subtreeIds, type LocationNode } from
 import { loadTemplateOptions } from "@/lib/label-templates";
 import { getCodeSeparator } from "@/lib/settings";
 import { locationVariables, templateForType } from "@/lib/label-template";
+import { storedSlots } from "@/lib/label-slots";
 import { LabelPrinter, type PrintItem } from "./label-printer";
 
 export const dynamic = "force-dynamic";
@@ -28,16 +29,19 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
   const { root, only, type } = await searchParams;
   const rootId = typeof root === "string" && isUuid(root) ? root : null;
 
-  const [all, descriptions, templates, types, separator] = await Promise.all([
+  const [all, details, templates, types, separator] = await Promise.all([
     loadLocations(),
-    db.select({ id: locations.id, description: locations.description }).from(locations),
+    db
+      .select({ id: locations.id, description: locations.description, labelSlots: locations.labelSlots })
+      .from(locations),
     loadTemplateOptions(),
     loadLocationTypes(),
     getCodeSeparator(),
   ]);
   const byId = new Map(all.map((l) => [l.id, l]));
   if (rootId && !byId.has(rootId)) notFound();
-  const descriptionOf = new Map(descriptions.map((d) => [d.id, d.description]));
+  const descriptionOf = new Map(details.map((d) => [d.id, d.description]));
+  const slotsOf = new Map(details.map((d) => [d.id, storedSlots(d.labelSlots)]));
 
   const inScope = rootId ? subtreeIds(all, rootId) : null;
   const items: PrintItem[] = [];
@@ -55,6 +59,7 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
           description: descriptionOf.get(node.id) ?? "",
           separator,
         }),
+        slots: slotsOf.get(node.id) ?? {},
       });
       walk(node.children);
     }

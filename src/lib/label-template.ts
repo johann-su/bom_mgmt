@@ -44,7 +44,13 @@ export type BoxStyle = {
   radius: number;
 };
 
-export type TextElement = Box & Partial<BoxStyle> & {
+// A text or graphic element can be a named *slot*: the template sets its
+// box, style and default content, and each location may fill it with its
+// own text or graphic (src/lib/label-slots.ts) — the screw-head symbol on
+// one bin's label, while the layout stays shared by every bin.
+type Slotted = { slot?: string };
+
+export type TextElement = Box & Partial<BoxStyle> & Slotted & {
   kind: "text";
   // Absent → black.
   color?: string;
@@ -65,7 +71,7 @@ export type FrameElement = Box & BoxStyle & { kind: "frame" };
 // A vector graphic (logo, warning symbol, icon) imported from SVG. `markup`
 // is the sanitised drawing (svg-sanitize.ts) in `viewBox` units; it is
 // scaled into the box, centred, keeping its proportions unless `stretch`.
-export type GraphicElement = Box & {
+export type GraphicElement = Box & Slotted & {
   kind: "graphic";
   markup: string;
   viewBox: [number, number, number, number];
@@ -108,6 +114,22 @@ export type LabelTemplate = {
   elements: LabelElement[];
   layout: PageLayout;
 };
+
+// --- Slots ---
+
+// Slot names key per-location values, so they are short, stable slugs.
+export const SLOT_NAME_RE = /^[a-z][a-z0-9-]{0,31}$/;
+
+/** Turns what the user typed into a slot name ("Screw head" → "screw-head"); "" when nothing usable is left. */
+export function slotName(input: string): string {
+  const slug = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^[^a-z]+/, "")
+    .slice(0, 32)
+    .replace(/-+$/, "");
+  return SLOT_NAME_RE.test(slug) ? slug : "";
+}
 
 // --- Variables ---
 
@@ -259,6 +281,10 @@ function boxStyle(e: Record<string, unknown>): Partial<BoxStyle> {
   return style;
 }
 
+function slotOf(e: Record<string, unknown>): { slot?: string } {
+  return typeof e.slot === "string" && SLOT_NAME_RE.test(e.slot) ? { slot: e.slot } : {};
+}
+
 /**
  * Checks untrusted JSON (a form submission, a stored row) and returns a clean
  * template, dropping unknown fields. Elements may hang off the label edge —
@@ -298,6 +324,7 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
       const align = e.align === "middle" || e.align === "end" ? e.align : "start";
       const textColor = color(e.color);
       elements.push({
+        ...slotOf(e),
         ...pos, kind: "text", text, fontSize, align,
         bold: e.bold === true, mono: e.mono === true, fit: e.fit === true,
         ...(textColor ? { color: textColor } : {}),
@@ -320,6 +347,7 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
       graphicBytes += markup.length;
       const name = typeof e.name === "string" ? e.name.slice(0, 100) : "";
       elements.push({
+        ...slotOf(e),
         ...pos, kind: "graphic", markup, viewBox: vb as GraphicElement["viewBox"], stretch: e.stretch === true,
         ...(name ? { name } : {}),
       });

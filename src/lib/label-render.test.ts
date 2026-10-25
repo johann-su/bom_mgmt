@@ -169,7 +169,7 @@ test("renderPages puts a sheet's labels onto as many pages as needed, offset int
       marginTop: 5, marginLeft: 10, gapX: 4, gapY: 2,
     },
   };
-  const { pages, errors } = renderPages(template, Array(5).fill(vars));
+  const { pages, errors } = renderPages(template, Array(5).fill({ vars }));
   assert.equal(errors.length, 0);
   assert.equal(pages.length, 2);
   assert.match(pages[0], /width="120mm" height="50mm"/);
@@ -179,7 +179,7 @@ test("renderPages puts a sheet's labels onto as many pages as needed, offset int
 });
 
 test("renderPages on a label-printer layout makes one page per label", () => {
-  const { pages } = renderPages(DEFAULT_TEMPLATES[0].template, [vars, vars, vars]);
+  const { pages } = renderPages(DEFAULT_TEMPLATES[0].template, [{ vars }, { vars }, { vars }]);
   assert.equal(pages.length, 3);
   assert.match(pages[0], /width="40mm"/);
 });

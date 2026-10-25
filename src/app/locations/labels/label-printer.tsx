@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChevronDown, FileDown, FileImage, FileSpreadsheet, FileType } from "lucide-react";
 import { pageSize, type LabelVariables, type TemplateOption } from "@/lib/label-template";
 import { labelsCsv, renderPages } from "@/lib/label-render";
+import type { LabelSlots } from "@/lib/label-slots";
 import { downloadBlob, filesOrZip, pagesToPdf, svgToPng, svgsToOutlines } from "@/lib/label-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export type PrintItem = {
   typeName: string;
   icon: string;
   vars: LabelVariables;
+  slots: LabelSlots;
 };
 
 
@@ -64,7 +66,7 @@ export function LabelPrinter({
   const sheet = template.layout.kind === "sheet" ? template.layout : null;
   const chosen = useMemo(() => items.filter((i) => selected.has(i.id)), [items, selected]);
   const rendered = useMemo(
-    () => renderPages(template, chosen.map((i) => i.vars), sheet ? skip : 0),
+    () => renderPages(template, chosen, sheet ? skip : 0),
     [template, chosen, sheet, skip],
   );
   const types = useMemo(() => [...new Set(items.map((i) => i.typeName))], [items]);
@@ -278,7 +280,7 @@ export function LabelPrinter({
           download as a ZIP.
         </p>
 
-        <NiimbotPanel template={template} labels={chosen.map((i) => i.vars)} />
+        <NiimbotPanel template={template} labels={chosen} />
 
         {errors.length > 0 && (
           <ul className="max-h-32 overflow-y-auto rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">

@@ -17,6 +17,7 @@ import type { UserRole } from "@/lib/roles";
 import type { PartAttribute } from "@/lib/part-attributes";
 import type { MovementKind } from "@/lib/stock";
 import type { LabelTemplate } from "@/lib/label-template";
+import type { LabelSlots } from "@/lib/label-slots";
 
 // --- BetterAuth tables ---
 // Property names must stay as spelled: the drizzle adapter looks each
@@ -115,6 +116,9 @@ export const locations = pgTable(
     // Optional human name next to the label ("Fasteners", "SMD passives").
     name: text("name").notNull().default(""),
     description: text("description").notNull().default(""),
+    // This location's own content for its label template's slots (the
+    // symbol on one bin), by slot name. Validated by parseSlots on write.
+    labelSlots: jsonb("label_slots").$type<LabelSlots>().notNull().default({}),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },

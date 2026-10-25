@@ -43,6 +43,13 @@
       "when": 1792616797058,
       "tag": "0005_app_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792944333626,
+      "tag": "0006_location_label_slots",
+      "breakpoints": true
     }
   ]
 }

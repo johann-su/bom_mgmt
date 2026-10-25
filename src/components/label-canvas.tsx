@@ -73,6 +73,7 @@ const angleAt = (p: DOMPoint, cx: number, cy: number) =>
  */
 export function LabelCanvas({
   template,
+  previewed = template,
   vars,
   selectedIds,
   grid,
@@ -83,6 +84,9 @@ export function LabelCanvas({
   onRestack,
 }: {
   template: LabelTemplate;
+  // What is drawn, when it differs from the elements being edited (a
+  // location's slot values filled in); the handles follow `template`.
+  previewed?: LabelTemplate;
   vars: LabelVariables;
   selectedIds: string[];
   grid: number;
@@ -102,7 +106,7 @@ export function LabelCanvas({
   const drag = useRef<Drag | null>(null);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [marquee, setMarquee] = useState<Rect | null>(null);
-  const body = useMemo(() => renderLabelBody(template, vars).body, [template, vars]);
+  const body = useMemo(() => renderLabelBody(previewed, vars).body, [previewed, vars]);
   const { width, height } = template;
   const selection = template.elements.filter((e) => selectedIds.includes(e.id));
   // Resize and rotate handles only make sense for one element.

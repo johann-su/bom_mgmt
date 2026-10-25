@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth";
 import { nextLabels, parseLabel, parsePattern, type ParsedPattern } from "@/lib/label-pattern";
 import { subtreeIds } from "@/lib/location-tree";
 import { isUniqueViolation } from "@/lib/db-errors";
+import { SLOT_NAME_RE } from "@/lib/label-template";
+import { parseSlotValue, parseSlots, storedSlots, withSlot } from "@/lib/label-slots";
 
 type Result = { error?: string };
 
@@ -129,6 +131,37 @@ export async function updateLocation(input: {
     if (isUniqueViolation(err)) return { error: `A sibling is already labeled ${label}` };
     throw err;
   }
+  revalidate();
+  return {};
+}
+
+/**
+ * Fills one slot of a location's label with its own text or graphic, or
+ * with `value: null` goes back to the template's default. Other slots —
+ * including ones the current template doesn't have — are kept.
+ */
+export async function setLocationLabelSlot(input: {
+  id: string;
+  name: string;
+  value: unknown;
+}): Promise<Result> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  if (!SLOT_NAME_RE.test(input.name)) return { error: "Invalid slot name" };
+  const value = input.value === null ? null : parseSlotValue(input.value);
+  if (value && "error" in value) return value;
+
+  const location = await db.query.locations.findFirst({
+    where: eq(locations.id, input.id),
+    columns: { labelSlots: true },
+  });
+  if (!location) return { error: "Location not found" };
+  const slots = parseSlots(withSlot(storedSlots(location.labelSlots), input.name, value));
+  if ("error" in slots) return slots;
+
+  await db
+    .update(locations)
+    .set({ labelSlots: slots, updatedAt: new Date() })
+    .where(eq(locations.id, input.id));
   revalidate();
   return {};
 }

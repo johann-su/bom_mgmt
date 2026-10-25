@@ -18,6 +18,7 @@ import { appUrl } from "@/lib/app-url";
 import { loadTemplateOptions } from "@/lib/label-templates";
 import { getCodeSeparator } from "@/lib/settings";
 import { locationVariables, templateForType } from "@/lib/label-template";
+import { storedSlots } from "@/lib/label-slots";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -67,7 +68,7 @@ export default async function LocationPage({ params }: Params) {
 
   const details = await db.query.locations.findFirst({
     where: (l, { eq }) => eq(l.id, id),
-    columns: { description: true },
+    columns: { description: true, labelSlots: true },
   });
   const chain = ancestry(byId, id);
   const separator = await getCodeSeparator();
@@ -162,6 +163,7 @@ export default async function LocationPage({ params }: Params) {
           description: details?.description ?? "",
           separator,
         })}
+        slots={storedSlots(details?.labelSlots)}
         type={{ id: location.type.id, name: location.type.name }}
         current={label}
         options={templateOptions}

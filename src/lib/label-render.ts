@@ -26,6 +26,7 @@ import {
   type LabelVariables,
   type TextElement,
 } from "@/lib/label-template";
+import { applySlots, type LabelData, type LabelSlots } from "@/lib/label-slots";
 
 const PT_TO_MM = 25.4 / 72;
 const LINE_HEIGHT = 1.2;
@@ -211,9 +212,13 @@ function svgDocument(width: number, height: number, body: string): string {
   );
 }
 
-/** A single label as a standalone SVG at its own size. */
-export function renderLabelSvg(template: LabelTemplate, vars: Partial<LabelVariables>): RenderedLabel {
-  const { body, errors } = renderLabelBody(template, vars);
+/** A single label as a standalone SVG at its own size, with the location's slot values. */
+export function renderLabelSvg(
+  template: LabelTemplate,
+  vars: Partial<LabelVariables>,
+  slots?: LabelSlots,
+): RenderedLabel {
+  const { body, errors } = renderLabelBody(applySlots(template, slots), vars);
   return {
     body: svgDocument(template.width, template.height, `<rect width="100%" height="100%" fill="#fff"/>${body}`),
     errors,
@@ -222,20 +227,21 @@ export function renderLabelSvg(template: LabelTemplate, vars: Partial<LabelVaria
 
 /**
  * Every label laid out onto pages: one SVG per page, at the page size of the
- * template's layout (the label size itself for label printers).
+ * template's layout (the label size itself for label printers). Each label
+ * gets its own location's slot values.
  */
 export function renderPages(
   template: LabelTemplate,
-  labels: Partial<LabelVariables>[],
+  labels: LabelData[],
   skip = 0,
   options: RenderOptions = {},
 ): { pages: string[]; errors: string[] } {
   const placements = placeLabels(template, labels.length, skip);
   const bodies: string[][] = [];
   const errors: string[] = [];
-  labels.forEach((vars, i) => {
+  labels.forEach(({ vars, slots }, i) => {
     const { page, x, y } = placements[i];
-    const rendered = renderLabelBody(template, vars, options);
+    const rendered = renderLabelBody(applySlots(template, slots), vars, options);
     errors.push(...rendered.errors.map((e) => (vars.code ? `${vars.code}: ${e}` : e)));
     (bodies[page] ??= []).push(
       x === 0 && y === 0 ? rendered.body : `<g transform="translate(${n(x)} ${n(y)})">${rendered.body}</g>`,
