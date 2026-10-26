@@ -65,8 +65,9 @@ export async function listParts(filters: {
 
 export type PartListRow = Awaited<ReturnType<typeof listParts>>[number];
 
-// Location ids holding stock (> 0) of each part, for the "where is it" column.
-// null stands for the part's unsorted pile.
+// Location ids of each part, for the "where is it" column: every location
+// with a stock row — an empty one is still the part's home (where it goes
+// when restocked) — plus null for an unsorted pile that holds anything.
 export async function stockLocationsByPart(
   partIds: string[],
 ): Promise<Map<string, (string | null)[]>> {
@@ -74,7 +75,9 @@ export async function stockLocationsByPart(
   const rows = await db
     .select({ partId: stock.partId, locationId: stock.locationId })
     .from(stock)
-    .where(and(inArray(stock.partId, partIds), gt(stock.quantity, 0)));
+    .where(
+      and(inArray(stock.partId, partIds), or(isNotNull(stock.locationId), gt(stock.quantity, 0))),
+    );
   const out = new Map<string, (string | null)[]>();
   for (const r of rows) out.set(r.partId, [...(out.get(r.partId) ?? []), r.locationId]);
   return out;
