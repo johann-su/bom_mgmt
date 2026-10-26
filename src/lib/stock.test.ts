@@ -4,8 +4,10 @@ import {
   buildableUnits,
   isLowStock,
   parseQuantity,
+  fromPickerValue,
   planConsumption,
   requirements,
+  toPickerValue,
 } from "@/lib/stock";
 
 test("builds draw from the smallest stocks first to empty nearly-empty bins", () => {
@@ -21,6 +23,30 @@ test("builds draw from the smallest stocks first to empty nearly-empty bins", ()
     { locationId: "small", quantity: 3 },
     { locationId: "big", quantity: 7 },
   ]);
+});
+
+// Stock not put away yet (location null) is still on hand, so builds use it.
+test("builds draw from unsorted stock like any bin", () => {
+  assert.deepEqual(
+    planConsumption(
+      [
+        { locationId: "bin", quantity: 10 },
+        { locationId: null, quantity: 4 },
+      ],
+      6,
+    ),
+    [
+      { locationId: null, quantity: 4 },
+      { locationId: "bin", quantity: 2 },
+    ],
+  );
+});
+
+// Pickers use null for "nothing chosen", so unsorted travels as a sentinel
+// and must come back as null before it reaches the stock actions.
+test("unsorted round-trips through the picker value", () => {
+  assert.equal(fromPickerValue(toPickerValue(null)), null);
+  assert.equal(fromPickerValue(toPickerValue("loc-1")), "loc-1");
 });
 
 test("planConsumption refuses when the total is short — no partial builds", () => {

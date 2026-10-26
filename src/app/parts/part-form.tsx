@@ -309,7 +309,7 @@ export function PartForm({
                 locations={locations}
                 value={locationId}
                 onChange={setLocationId}
-                placeholder="Where is it stored? (optional)"
+                placeholder="Where is it stored? (empty = unsorted)"
               />
             </div>
             <div className="grid gap-2">
@@ -321,7 +321,6 @@ export function PartForm({
                 min={0}
                 step={1}
                 defaultValue={prefill?.initialQuantity ?? ""}
-                disabled={!locationId}
               />
             </div>
             <div className="grid gap-2 sm:col-span-2">

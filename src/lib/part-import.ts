@@ -3,12 +3,12 @@
 // rows to existing parts, location lookup) is the pure core in part-csv.ts;
 // this module loads what the planner needs and writes the plan.
 
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db";
-import { categories, parts, stock } from "@/db/schema";
+import { categories, parts } from "@/db/schema";
 import { loadLocationOptions } from "@/lib/locations";
 import { htmlToMarkdown } from "@/lib/markdown";
-import { applyDelta, recordMovement } from "@/lib/movements";
+import { applyDelta, recordMovement, stockAt } from "@/lib/movements";
 import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import { revalidateInventory } from "@/lib/part-mutations";
 import {
@@ -90,7 +90,11 @@ export async function runPartImport(
         name: row.values.name ?? existing?.name ?? row.values.mpn ?? "",
         mpn: row.values.mpn ?? existing?.mpn ?? "",
         action: "created" in row.target && row.target.created === i ? "create" : "update",
-        location: row.stock ? (codeById.get(row.stock.locationId) ?? "") : "",
+        location: !row.stock
+          ? ""
+          : row.stock.locationId
+            ? (codeById.get(row.stock.locationId) ?? "")
+            : "Unsorted",
         quantity: row.stock?.quantity ?? null,
         attributes: row.values.attributes ?? [],
       };
@@ -146,11 +150,14 @@ export async function runPartImport(
       let delta = quantity;
       if (input.stockMode === "set") {
         const current = await tx.query.stock.findFirst({
-          where: and(eq(stock.partId, partId), eq(stock.locationId, locationId)),
+          where: stockAt(partId, locationId),
           columns: { quantity: true },
         });
         delta = quantity - (current?.quantity ?? 0);
       }
+      // A location at 0 is recorded as the part's home; an unsorted pile at
+      // 0 means nothing, so no row for it.
+      if (delta === 0 && locationId === null) continue;
       // Never fails: "add" only adds, "set" lands on a non-negative count.
       await applyDelta(tx, partId, locationId, delta);
       if (delta !== 0) {

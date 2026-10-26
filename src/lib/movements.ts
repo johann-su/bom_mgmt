@@ -1,4 +1,4 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Tx } from "@/db";
 import { stock, stockMovements } from "@/db/schema";
 import type { MovementKind } from "@/lib/stock";
@@ -14,15 +14,23 @@ export async function locationCodes(): Promise<Map<string, string>> {
   return new Map(all.map((l) => [l.id, locationCode(ancestry(byId, l.id), separator)]));
 }
 
+/** Matches a part's stock row at `locationId`; null is the unsorted pile. */
+export function stockAt(partId: string, locationId: string | null) {
+  return and(
+    eq(stock.partId, partId),
+    locationId ? eq(stock.locationId, locationId) : isNull(stock.locationId),
+  );
+}
+
 /**
  * Applies a signed delta to one (part, location) stock row inside `tx`,
- * creating the row on first use. Returns false — and changes nothing — when
+ * creating the row on first use. A null location is the unsorted pile. Returns false — and changes nothing — when
  * the result would go negative; the CHECK constraint backs this up.
  */
 export async function applyDelta(
   tx: Tx,
   partId: string,
-  locationId: string,
+  locationId: string | null,
   delta: number,
 ): Promise<boolean> {
   await tx
@@ -33,11 +41,7 @@ export async function applyDelta(
     .update(stock)
     .set({ quantity: sql`${stock.quantity} + ${delta}`, updatedAt: new Date() })
     .where(
-      and(
-        eq(stock.partId, partId),
-        eq(stock.locationId, locationId),
-        sql`${stock.quantity} + ${delta} >= 0`,
-      ),
+      and(stockAt(partId, locationId), sql`${stock.quantity} + ${delta} >= 0`),
     )
     .returning({ id: stock.id });
   return updated.length === 1;

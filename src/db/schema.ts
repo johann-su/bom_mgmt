@@ -408,7 +408,8 @@ export const files = pgTable(
 
 // How many of a part sit in one location. A part may be spread over several
 // locations; a row at quantity 0 is kept so the part's "home" isn't forgotten
-// when the bin runs empty.
+// when the bin runs empty. A null location is the part's "unsorted" pile —
+// stock that is on hand but not put away yet (at most one per part).
 export const stock = pgTable(
   "stock",
   {
@@ -416,14 +417,12 @@ export const stock = pgTable(
     partId: uuid("part_id")
       .notNull()
       .references(() => parts.id, { onDelete: "cascade" }),
-    locationId: uuid("location_id")
-      .notNull()
-      .references(() => locations.id, { onDelete: "restrict" }),
+    locationId: uuid("location_id").references(() => locations.id, { onDelete: "restrict" }),
     quantity: integer("quantity").notNull().default(0),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
   (t) => [
-    unique("stock_part_location").on(t.partId, t.locationId),
+    unique("stock_part_location").on(t.partId, t.locationId).nullsNotDistinct(),
     index("stock_location_idx").on(t.locationId),
     check("stock_quantity_nonnegative", sql`${t.quantity} >= 0`),
   ],
@@ -441,7 +440,9 @@ export const stockMovements = pgTable(
       .references(() => parts.id, { onDelete: "cascade" }),
     kind: text("kind").$type<MovementKind>().notNull(),
     // Signed change at `locationId` (+ for add, − for remove/build). For a
-    // move it is the (positive) amount that went from → to.
+    // move it is the (positive) amount that went from → to. A null location
+    // with an empty path is the unsorted pile; a null one with a path is a
+    // location deleted since.
     quantity: integer("quantity").notNull(),
     locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
     toLocationId: uuid("to_location_id").references(() => locations.id, {

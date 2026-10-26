@@ -6,9 +6,10 @@ import { cn } from "@/lib/utils";
 
 const KIND_ICON = { add: Plus, remove: Minus, adjust: Scale, move: ArrowRight, build: Hammer };
 
-// A location as recorded at the time — linked while it still exists.
+// A location as recorded at the time — linked while it still exists. No
+// path means the unsorted pile (a deleted location keeps its path).
 function Place({ id, path }: { id: string | null; path: string }) {
-  if (!path) return <span className="text-muted-foreground">(deleted location)</span>;
+  if (!path) return <span className="text-muted-foreground">Unsorted</span>;
   return id ? (
     <Link href={`/locations/${id}`} className="font-mono hover:underline">
       {path}

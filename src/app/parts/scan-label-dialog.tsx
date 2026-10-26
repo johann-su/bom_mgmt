@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { fromPickerValue } from "@/lib/stock";
 import { LocationPicker } from "@/components/location-picker";
 import { findPartByLabel } from "./actions";
 import { changeStock } from "./stock-actions";
@@ -83,7 +84,13 @@ export function ScanLabelDialog({ locations }: { locations: LocationOption[] }) 
       ]
         .filter(Boolean)
         .join(" · ");
-      const result = await changeStock({ partId: match.id, locationId, mode: "add", quantity, note });
+      const result = await changeStock({
+        partId: match.id,
+        locationId: fromPickerValue(locationId),
+        mode: "add",
+        quantity,
+        note,
+      });
       if (result.error) {
         toast.error(result.error);
         return;
@@ -195,7 +202,12 @@ export function ScanLabelDialog({ locations }: { locations: LocationOption[] }) 
                 <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
                   <div className="grid gap-2">
                     <Label>Put into</Label>
-                    <LocationPicker locations={locations} value={locationId} onChange={setLocationId} />
+                    <LocationPicker
+                      locations={locations}
+                      value={locationId}
+                      onChange={setLocationId}
+                      allowUnsorted
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="scan-qty">Quantity</Label>

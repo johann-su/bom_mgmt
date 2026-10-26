@@ -5,14 +5,30 @@
 export const MOVEMENT_KINDS = ["add", "remove", "move", "adjust", "build"] as const;
 export type MovementKind = (typeof MOVEMENT_KINDS)[number];
 
-export type StockSlot = { locationId: string; quantity: number };
-export type Allocation = { locationId: string; quantity: number };
+// A null locationId is the part's unsorted pile (see the stock table).
+// Pickers and form state, which use null for "nothing chosen", call it
+// UNSORTED_VALUE instead and convert at the edges.
+export const UNSORTED_VALUE = "__unsorted__";
+
+/** A stock location id as a picker value. */
+export function toPickerValue(locationId: string | null): string {
+  return locationId ?? UNSORTED_VALUE;
+}
+
+/** A picked value as a stock location id: null for unsorted. */
+export function fromPickerValue(value: string): string | null {
+  return value === UNSORTED_VALUE ? null : value;
+}
+
+export type StockSlot = { locationId: string | null; quantity: number };
+export type Allocation = { locationId: string | null; quantity: number };
 
 /**
  * Picks the locations to take `needed` from. Draws the smallest stocks first,
  * so a build empties nearly-empty bins instead of nibbling at every bin —
- * fewer half-full bins and fewer places to restock. Null when the slots don't
- * hold enough in total.
+ * fewer half-full bins and fewer places to restock. Unsorted stock counts like
+ * any bin (it sorts first on a tie). Null when the slots don't hold enough in
+ * total.
  */
 export function planConsumption(slots: StockSlot[], needed: number): Allocation[] | null {
   if (needed <= 0) return [];
@@ -20,7 +36,7 @@ export function planConsumption(slots: StockSlot[], needed: number): Allocation[
   const total = available.reduce((sum, s) => sum + s.quantity, 0);
   if (total < needed) return null;
   const ordered = [...available].sort(
-    (a, b) => a.quantity - b.quantity || a.locationId.localeCompare(b.locationId),
+    (a, b) => a.quantity - b.quantity || (a.locationId ?? "").localeCompare(b.locationId ?? ""),
   );
   const out: Allocation[] = [];
   let remaining = needed;

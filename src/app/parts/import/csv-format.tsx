@@ -63,6 +63,11 @@ export function CsvFormat() {
                 locations.
               </li>
               <li>
+                A quantity without a location (an empty cell, or no Location column at all, as
+                in an order export) is booked as <strong>unsorted</strong>, ready to be put away
+                from the part&apos;s page.
+              </li>
+              <li>
                 Other common spellings (e.g. &quot;Qty&quot;, &quot;Manufacturer Part
                 Number&quot;) are recognized too, and you can reassign columns after picking the
                 file.

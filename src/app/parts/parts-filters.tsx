@@ -12,28 +12,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// Filters live in the URL (?q=&category=&low=1) so a filtered list can be
+// Filters live in the URL (?q=&category=&low=1&unsorted=1) so a filtered list can be
 // bookmarked and the server renders it directly.
 export function PartsFilters({
   categories,
   q,
   category,
   low,
+  unsorted,
 }: {
   categories: { id: string; name: string }[];
   q: string;
   category: string;
   low: boolean;
+  unsorted: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  function navigate(next: { q?: string; category?: string; low?: boolean }) {
+  function navigate(next: { q?: string; category?: string; low?: boolean; unsorted?: boolean }) {
     const params = new URLSearchParams();
-    const merged = { q, category, low, ...next };
+    const merged = { q, category, low, unsorted, ...next };
     if (merged.q) params.set("q", merged.q);
     if (merged.category) params.set("category", merged.category);
     if (merged.low) params.set("low", "1");
+    if (merged.unsorted) params.set("unsorted", "1");
     const query = params.toString();
     router.push(query ? `${pathname}?${query}` : pathname);
   }
@@ -77,6 +80,13 @@ export function PartsFilters({
         aria-pressed={low}
       >
         Low stock
+      </Button>
+      <Button
+        variant={unsorted ? "default" : "outline"}
+        onClick={() => navigate({ unsorted: !unsorted })}
+        aria-pressed={unsorted}
+      >
+        Unsorted
       </Button>
     </div>
   );

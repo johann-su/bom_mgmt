@@ -35,6 +35,21 @@ export function resolveLocation<T extends LocationRef>(locations: T[], ref: stri
   );
 }
 
+/** How tools name the unsorted pile (stock not put away in a location). */
+export const UNSORTED_REF = "unsorted";
+
+/**
+ * Like resolveLocation, but for where stock sits: "unsorted" is the part's
+ * unsorted pile (null) — unless a real location is called that, which wins.
+ */
+export function resolveStockPlace<T extends LocationRef>(locations: T[], ref: string): string | null {
+  if (ref.trim().toLowerCase() === UNSORTED_REF) {
+    const named = locations.find((l) => l.code.toLowerCase() === UNSORTED_REF);
+    return named ? named.id : null;
+  }
+  return resolveLocation(locations, ref).id;
+}
+
 /**
  * Attributes as the model may send them: a list of {key, value} or a plain
  * object ({"Package": "DIP-8"}). Normalized like the part form's input.

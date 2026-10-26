@@ -16,20 +16,20 @@ import { ScanLabelDialog } from "./scan-label-dialog";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Parts" };
 
-type SearchParams = Promise<{ q?: string; category?: string; low?: string }>;
+type SearchParams = Promise<{ q?: string; category?: string; low?: string; unsorted?: string }>;
 
 export default async function PartsPage({ searchParams }: { searchParams: SearchParams }) {
   await requireSession();
-  const { q = "", category = "", low } = await searchParams;
+  const { q = "", category = "", low, unsorted } = await searchParams;
   const [cats, rows, locations] = await Promise.all([
     db.select({ id: categories.id, name: categories.name }).from(categories).orderBy(asc(categories.name)),
-    listParts({ q, categoryId: category || null, lowStock: low === "1" }),
+    listParts({ q, categoryId: category || null, lowStock: low === "1", unsorted: unsorted === "1" }),
     loadLocationOptions(),
   ]);
   const ids = rows.map((r) => r.id);
   const [thumbs, where] = await Promise.all([firstImages(ids), stockLocationsByPart(ids)]);
   const codes = new Map(locations.map((l) => [l.id, { code: l.code, path: l.path }]));
-  const filtered = Boolean(q || category || low);
+  const filtered = Boolean(q || category || low || unsorted);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -58,7 +58,13 @@ export default async function PartsPage({ searchParams }: { searchParams: Search
         </div>
       </div>
 
-      <PartsFilters categories={cats} q={q} category={category} low={low === "1"} />
+      <PartsFilters
+        categories={cats}
+        q={q}
+        category={category}
+        low={low === "1"}
+        unsorted={unsorted === "1"}
+      />
 
       {rows.length === 0 ? (
         <div className="text-center py-24 text-muted-foreground">
@@ -77,8 +83,9 @@ export default async function PartsPage({ searchParams }: { searchParams: Search
           rows={rows.map((r) => ({
             ...r,
             thumb: thumbs.get(r.id) ?? null,
+            unsorted: (where.get(r.id) ?? []).includes(null),
             locations: (where.get(r.id) ?? [])
-              .map((id) => codes.get(id))
+              .map((id) => (id ? codes.get(id) : undefined))
               .filter((l): l is { code: string; path: string } => !!l)
               .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true })),
           }))}

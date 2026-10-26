@@ -6,12 +6,12 @@
 // other.
 
 import { revalidatePath } from "next/cache";
-import { and, count, eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { bomItems, files, parts, stock } from "@/db/schema";
+import { bomItems, files, parts } from "@/db/schema";
 import { parsePartInput } from "@/lib/part-input";
 import { parseQuantity } from "@/lib/stock";
-import { applyDelta, locationCodes, recordMovement } from "@/lib/movements";
+import { applyDelta, locationCodes, recordMovement, stockAt } from "@/lib/movements";
 import { blobStore } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
@@ -32,6 +32,7 @@ export function revalidateInventory(partId?: string) {
 /**
  * Creates a part, optionally with its first stock (`initialLocationId` +
  * `initialQuantity`), which is logged as an "add" movement like any other.
+ * A quantity without a location lands in the part's unsorted pile.
  */
 export async function createPart(
   userId: string,
@@ -40,15 +41,15 @@ export async function createPart(
   const input = parsePartInput(raw);
   if ("error" in input) return input;
 
-  const initialQuantity =
-    raw.initialLocationId && raw.initialQuantity
-      ? parseQuantity(raw.initialQuantity, { allowZero: true })
-      : null;
-  if (raw.initialLocationId && raw.initialQuantity && initialQuantity === null) {
+  const initialLocationId = raw.initialLocationId || null;
+  const initialQuantity = raw.initialQuantity
+    ? parseQuantity(raw.initialQuantity, { allowZero: true })
+    : null;
+  if (raw.initialQuantity && initialQuantity === null) {
     return { error: "Initial quantity must be a whole number" };
   }
-  const codes = raw.initialLocationId ? await locationCodes() : new Map<string, string>();
-  if (raw.initialLocationId && !codes.has(raw.initialLocationId)) {
+  const codes = initialLocationId ? await locationCodes() : new Map<string, string>();
+  if (initialLocationId && !codes.has(initialLocationId)) {
     return { error: "Location not found" };
   }
 
@@ -57,15 +58,16 @@ export async function createPart(
       .insert(parts)
       .values({ ...input, createdBy: userId })
       .returning({ id: parts.id });
-    if (raw.initialLocationId) {
+    // A location alone records the part's home; unsorted needs a quantity.
+    if (initialLocationId || initialQuantity) {
       const quantity = initialQuantity ?? 0;
-      await applyDelta(tx, part.id, raw.initialLocationId, quantity);
+      await applyDelta(tx, part.id, initialLocationId, quantity);
       if (quantity > 0) {
         await recordMovement(tx, {
           partId: part.id,
           kind: "add",
           quantity,
-          locationId: raw.initialLocationId,
+          locationId: initialLocationId,
           codes,
           note: "Initial stock",
           userId,
@@ -125,13 +127,14 @@ export async function deletePart(id: string): Promise<MutationResult> {
  *  - add / remove: by `quantity`
  *  - set: to `quantity` after a stock-take (recorded as an "adjust" by the
  *    difference)
- * Every change lands in stock_movements.
+ * A null location is the part's unsorted pile. Every change lands in
+ * stock_movements.
  */
 export async function changeStock(
   userId: string,
   input: {
     partId: string;
-    locationId: string;
+    locationId: string | null;
     mode: "add" | "remove" | "set";
     quantity: string | number;
     note?: string;
@@ -139,22 +142,25 @@ export async function changeStock(
 ): Promise<MutationResult> {
   const quantity = parseQuantity(input.quantity, { allowZero: input.mode === "set" });
   if (quantity === null) return { error: "Enter a whole number" };
+  input = { ...input, locationId: input.locationId || null };
 
   const codes = await locationCodes();
-  if (!codes.has(input.locationId)) return { error: "Location not found" };
+  if (input.locationId && !codes.has(input.locationId)) return { error: "Location not found" };
 
   try {
     await db.transaction(async (tx) => {
       let delta = input.mode === "remove" ? -quantity : quantity;
       if (input.mode === "set") {
         const current = await tx.query.stock.findFirst({
-          where: and(eq(stock.partId, input.partId), eq(stock.locationId, input.locationId)),
+          where: stockAt(input.partId, input.locationId),
           columns: { quantity: true },
         });
         delta = quantity - (current?.quantity ?? 0);
       }
       if (!(await applyDelta(tx, input.partId, input.locationId, delta))) {
-        throw new StockError("Not enough stock in that location");
+        throw new StockError(
+          input.locationId ? "Not enough stock in that location" : "Not enough unsorted stock",
+        );
       }
       // A stock-take that matches the count changes nothing worth logging,
       // but the row above still records the location as the part's home.
@@ -177,22 +183,30 @@ export async function changeStock(
   return {};
 }
 
+/**
+ * Moves stock between two places; either may be null (the unsorted pile), so
+ * putting unsorted stock away is a move from null into a location.
+ */
 export async function moveStock(
   userId: string,
   input: {
     partId: string;
-    fromLocationId: string;
-    toLocationId: string;
+    fromLocationId: string | null;
+    toLocationId: string | null;
     quantity: string | number;
     note?: string;
   },
 ): Promise<MutationResult> {
   const quantity = parseQuantity(input.quantity);
   if (quantity === null) return { error: "Enter a whole number" };
+  input = { ...input, fromLocationId: input.fromLocationId || null, toLocationId: input.toLocationId || null };
   if (input.fromLocationId === input.toLocationId) return { error: "Pick a different location" };
 
   const codes = await locationCodes();
-  if (!codes.has(input.fromLocationId) || !codes.has(input.toLocationId)) {
+  if (
+    (input.fromLocationId && !codes.has(input.fromLocationId)) ||
+    (input.toLocationId && !codes.has(input.toLocationId))
+  ) {
     return { error: "Location not found" };
   }
 

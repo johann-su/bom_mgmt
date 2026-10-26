@@ -35,11 +35,20 @@ import {
   ToolError,
   type McpTool,
 } from "@/lib/mcp/protocol";
-import { importRowsToTable, partFormValues, readAttributes, resolveLocation, type PartPatch } from "@/lib/mcp/tool-input";
+import {
+  importRowsToTable,
+  partFormValues,
+  readAttributes,
+  resolveLocation,
+  resolveStockPlace,
+  UNSORTED_REF,
+  type PartPatch,
+} from "@/lib/mcp/tool-input";
 
 const INSTRUCTIONS_COMMON = `This server is a workshop parts inventory: parts (with MPN, manufacturer, category, unit, attributes, order link), the storage locations they sit in, stock counts per location, and bills of materials (BOMs).
 
 - Locations are addressed by code, e.g. "A/1/IV" (shelf A, box 1, bin IV). list_locations lists them.
+- Stock that isn't put away yet sits in a part's "unsorted" pile; stock tools take "unsorted" as a location. Putting it away is a move_stock from "unsorted".
 - Quantities are whole numbers in the part's unit ("pcs", "m", "g").`;
 
 const INSTRUCTIONS_READ_ONLY = `
@@ -72,10 +81,6 @@ async function requirePart(id: string) {
   });
   if (!part) throw new ToolError(`No part with id ${id} — ${PART_ID_HINT}`);
   return part;
-}
-
-async function findLocation(ref: string) {
-  return resolveLocation(await loadLocationOptions(), ref);
 }
 
 /** A category id from its name (case-insensitive), created on first use like the importer does. */
@@ -128,11 +133,17 @@ async function partDetail(id: string, { movements = 10 } = {}) {
     minStock: part.minStock,
     lowStock: isLowStock(total, part.minStock),
     // Rows at 0 are kept: they remember where the part lives when it runs out.
-    stock: stockRows
-      .map((s) => ({ ...s, location: byLocation.get(s.locationId) }))
-      .filter((s) => s.location)
-      .map((s) => ({ location: s.location!.code, path: s.location!.path, quantity: s.quantity }))
-      .sort((a, b) => a.location.localeCompare(b.location, undefined, { numeric: true })),
+    // An emptied unsorted pile is left out.
+    stock: [
+      ...stockRows
+        .filter((s) => s.locationId === null && s.quantity > 0)
+        .map((s) => ({ location: UNSORTED_REF, path: "Not put away yet", quantity: s.quantity })),
+      ...stockRows
+        .map((s) => ({ ...s, location: s.locationId ? byLocation.get(s.locationId) : undefined }))
+        .filter((s) => s.location)
+        .map((s) => ({ location: s.location!.code, path: s.location!.path, quantity: s.quantity }))
+        .sort((a, b) => a.location.localeCompare(b.location, undefined, { numeric: true })),
+    ],
     usedInBoms: usedIn.map((b) => ({ ...b, url: bomUrl(b.bomId) })),
     files: partFiles,
     ...(movements > 0
@@ -141,8 +152,9 @@ async function partDetail(id: string, { movements = 10 } = {}) {
             at: m.createdAt.toISOString(),
             kind: m.kind,
             quantity: m.quantity,
-            location: m.locationPath || null,
-            toLocation: m.toLocationPath || null,
+            // An empty path is the unsorted pile (see stock_movements).
+            location: m.locationPath || UNSORTED_REF,
+            toLocation: m.kind === "move" ? m.toLocationPath || UNSORTED_REF : null,
             note: m.note || null,
             by: m.userName,
             bom: m.bomName,
@@ -281,7 +293,9 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             totalStock: p.total,
             minStock: p.minStock,
             lowStock: isLowStock(p.total, p.minStock),
-            locations: (where.get(p.id) ?? []).map((id) => codeById.get(id)).filter(Boolean),
+            locations: (where.get(p.id) ?? [])
+              .map((id) => (id ? codeById.get(id) : UNSORTED_REF))
+              .filter(Boolean),
           })),
           truncated: rows.length > limit,
         };
@@ -365,7 +379,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             partId: r.partId,
             name: r.name,
             mpn: r.mpn,
-            location: codeById.get(r.locationId),
+            location: codeById.get(r.locationId!),
             quantity: r.quantity,
             unit: r.unit,
           })),
@@ -455,13 +469,13 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       name: "create_part",
       title: "Create part",
       description:
-        "Adds a new part to the inventory, optionally with its first stock in one location. Check search_parts first so you don't create a duplicate. Returns the created part.",
+        'Adds a new part to the inventory, optionally with its first stock in one location (a quantity without a location goes to "unsorted"). Check search_parts first so you don\'t create a duplicate. Returns the created part.',
       inputSchema: {
         type: "object",
         properties: {
           ...PART_FIELD_PROPERTIES,
           attributes: ATTRIBUTES_SCHEMA,
-          location: { type: "string", description: "Location code for the initial stock." },
+          location: { type: "string", description: 'Location code for the initial stock; omit or "unsorted" if it isn\'t put away yet.' },
           quantity: { type: "integer", minimum: 0, description: "Initial stock at `location`." },
         },
         required: ["name"],
@@ -470,9 +484,6 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       run: async (args) => {
         const location = optionalString(args, "location");
         const quantity = args.quantity;
-        if (quantity !== undefined && quantity !== null && !location) {
-          throw new InvalidParamsError('"quantity" needs a "location" to put the stock in');
-        }
         const category = readCategory(args);
         const minStock = readMinStock(args);
         const { id } = check(
@@ -481,7 +492,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             categoryId: category ? await categoryIdFor(category) : "",
             minStock: minStock == null ? "" : String(minStock),
             attributes: readAttributes(args.attributes),
-            initialLocationId: location ? (await findLocation(location)).id : null,
+            initialLocationId: location ? resolveStockPlace(await loadLocationOptions(), location) : null,
             initialQuantity: quantity === undefined || quantity === null ? "" : String(quantity),
           }),
         );
@@ -528,7 +539,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
         type: "object",
         properties: {
           partId: { type: "string", description: "Part id from search_parts." },
-          location: { type: "string", description: 'Location code, e.g. "A/1".' },
+          location: { type: "string", description: 'Location code, e.g. "A/1", or "unsorted".' },
           mode: { type: "string", enum: ["add", "remove", "set"] },
           quantity: { type: "integer", minimum: 0 },
           note: { type: "string", description: "Why, shown in the history." },
@@ -539,11 +550,11 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       run: async (args) => {
         const partId = requireUuid(args, "partId", PART_ID_HINT);
         await requirePart(partId);
-        const location = await findLocation(requireString(args, "location"));
+        const locationId = resolveStockPlace(await loadLocationOptions(), requireString(args, "location"));
         check(
           await changeStock(userId, {
             partId,
-            locationId: location.id,
+            locationId,
             mode: requireEnum(args, "mode", ["add", "remove", "set"] as const),
             quantity: String(args.quantity ?? ""),
             note: optionalString(args, "note"),
@@ -555,13 +566,14 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
     {
       name: "move_stock",
       title: "Move stock",
-      description: "Moves some of a part's stock from one location to another. Logged in the part's history.",
+      description:
+        'Moves some of a part\'s stock from one location to another; from "unsorted" puts unsorted stock away. Logged in the part\'s history.',
       inputSchema: {
         type: "object",
         properties: {
           partId: { type: "string", description: "Part id from search_parts." },
-          from: { type: "string", description: "Location code to take from." },
-          to: { type: "string", description: "Location code to put into." },
+          from: { type: "string", description: 'Location code to take from, or "unsorted".' },
+          to: { type: "string", description: 'Location code to put into, or "unsorted".' },
           quantity: { type: "integer", minimum: 1 },
           note: { type: "string" },
         },
@@ -575,8 +587,8 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
         check(
           await moveStock(userId, {
             partId,
-            fromLocationId: resolveLocation(locations, requireString(args, "from")).id,
-            toLocationId: resolveLocation(locations, requireString(args, "to")).id,
+            fromLocationId: resolveStockPlace(locations, requireString(args, "from")),
+            toLocationId: resolveStockPlace(locations, requireString(args, "to")),
             quantity: String(args.quantity ?? ""),
             note: optionalString(args, "note"),
           }),
@@ -593,7 +605,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
         properties: {
           parts: {
             type: "array",
-            description: "Rows to import. A row needs a name or an MPN; quantity needs a location.",
+            description: 'Rows to import. A row needs a name or an MPN; a quantity without a location is booked as "unsorted".',
             items: {
               type: "object",
               properties: {
@@ -601,7 +613,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
                 category: { type: "string", description: "Category name; created if missing." },
                 minStock: { type: "integer", minimum: 0 },
                 attributes: ATTRIBUTES_SCHEMA,
-                location: { type: "string", description: "Location code for the stock in this row." },
+                location: { type: "string", description: 'Location code for the stock in this row; omit (or "unsorted") if it isn\'t put away yet.' },
                 quantity: { type: "integer", minimum: 0 },
               },
               additionalProperties: false,

@@ -98,19 +98,38 @@ test("quantities from spreadsheets: thousands separators and '.0' are accepted, 
   assert.equal(bad.rows.length, 0);
 });
 
-test("unknown location and quantity-without-location are row errors", () => {
-  const result = plan("Name,Location,Qty\nA,Z/9,1\nB,,4\nC,A/1,\n");
+test("an unknown location is a row error; a location alone records the part's home at 0", () => {
+  const result = plan("Name,Location,Qty\nA,Z/9,1\nC,A/1,\n");
   assert.deepEqual(
     result.errors.map((e) => e.line),
-    [2, 3],
+    [2],
   );
-  assert.deepEqual(result.rows[0].stock, { locationId: "loc-a1", quantity: 0 }, "location alone = home at 0");
+  assert.deepEqual(result.rows[0].stock, { locationId: "loc-a1", quantity: 0 });
 });
 
-test("an order export's Qty is ignored when no location column is mapped", () => {
+// Stock that isn't put away yet still counts: a quantity with no location
+// goes to the part's unsorted pile (locationId null) instead of failing.
+test("a quantity with an empty location cell, or 'unsorted', is booked as unsorted", () => {
+  const result = plan("Name,Location,Qty\nA,,4\nB,Unsorted,2\nC,,\n");
+  assert.equal(result.errors.length, 0);
+  assert.deepEqual(
+    result.rows.map((r) => r.stock),
+    [{ locationId: null, quantity: 4 }, { locationId: null, quantity: 2 }, null],
+  );
+});
+
+// An order export has a Qty but no Location column: received goods, unsorted.
+test("an order export's Qty is booked as unsorted when no location column is mapped", () => {
   const result = plan("MPN,Qty\nNE555P,10\n");
   assert.equal(result.errors.length, 0);
-  assert.equal(result.rows[0].stock, null);
+  assert.deepEqual(result.rows[0].stock, { locationId: null, quantity: 10 });
+});
+
+test("a location actually coded 'unsorted' wins over the unsorted pile", () => {
+  const table = readPartCsv("Name,Location,Qty\nA,unsorted,3\n");
+  const locations = [...LOCATIONS, { id: "loc-u", code: "UNSORTED", path: "Unsorted" }];
+  const result = planPartImport(table, guessPartMapping(table.headers), { parts: [], locations });
+  assert.deepEqual(result.rows[0].stock, { locationId: "loc-u", quantity: 3 });
 });
 
 test("min stock and order link are validated like the part form does", () => {

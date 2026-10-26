@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
-import { ArrowRightLeft, ClipboardList, PackagePlus, Pencil, ShoppingCart } from "lucide-react";
+import { ArrowRightLeft, ClipboardList, Inbox, PackagePlus, Pencil, ShoppingCart } from "lucide-react";
 import { db } from "@/db";
 import { bomItems, boms, files, parts, stock } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { loadLocationOptions } from "@/lib/locations";
 import { recentMovements } from "@/lib/movement-queries";
 import { formatQuantity } from "@/lib/format";
-import { isLowStock } from "@/lib/stock";
+import { isLowStock, toPickerValue } from "@/lib/stock";
 import { isUuid } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -74,12 +74,18 @@ export default async function PartPage({ params }: Params) {
 
   const byLocation = new Map(locations.map((l) => [l.id, l]));
   const placed = stockRows
-    .map((s) => ({ ...s, location: byLocation.get(s.locationId)! }))
-    .filter((s) => s.location)
+    .flatMap((s) => {
+      const location = s.locationId ? byLocation.get(s.locationId) : undefined;
+      return location ? [{ ...s, locationId: location.id, location }] : [];
+    })
     .sort((a, b) => a.location.code.localeCompare(b.location.code, undefined, { numeric: true }));
+  // The pile not put away yet; an emptied one is just not shown.
+  const unsorted = stockRows.find((s) => s.locationId === null)?.quantity ?? 0;
   const total = stockRows.reduce((sum, s) => sum + s.quantity, 0);
   const low = isLowStock(total, part.minStock);
-  const stockByLocation = Object.fromEntries(stockRows.map((s) => [s.locationId, s.quantity]));
+  const stockByLocation = Object.fromEntries(
+    stockRows.map((s) => [toPickerValue(s.locationId), s.quantity]),
+  );
   const cover = partFiles.find((f) => f.kind === "image");
   const stockPart = { id, name: part.name, unit: part.unit };
 
@@ -151,7 +157,7 @@ export default async function PartPage({ params }: Params) {
               />
             </CardHeader>
             <CardContent>
-              {placed.length === 0 ? (
+              {placed.length === 0 && unsorted === 0 ? (
                 <p className="py-6 text-center text-sm text-muted-foreground">
                   Not stored anywhere yet.
                 </p>
@@ -165,6 +171,36 @@ export default async function PartPage({ params }: Params) {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {unsorted > 0 && (
+                      <TableRow>
+                        <TableCell>
+                          <span className="flex items-center gap-1.5 font-medium">
+                            <Inbox className="size-4 text-muted-foreground" />
+                            Unsorted
+                          </span>
+                          <div className="text-xs text-muted-foreground">Not put away yet</div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatQuantity(unsorted, part.unit)}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-end">
+                            <StockDialog
+                              part={stockPart}
+                              locationId={toPickerValue(null)}
+                              locations={locations}
+                              stockByLocation={stockByLocation}
+                              initialMode="move"
+                              trigger={
+                                <Button variant="ghost" size="icon" aria-label="Put away">
+                                  <ArrowRightLeft className="size-4" />
+                                </Button>
+                              }
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
                     {placed.map((s) => (
                       <TableRow key={s.locationId}>
                         <TableCell>

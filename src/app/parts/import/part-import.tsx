@@ -224,7 +224,7 @@ export function PartImport() {
                 </Select>
               </div>
             ))}
-            {mapping.location !== undefined && (
+            {mapping.quantity !== undefined && (
               <div className="grid gap-2 sm:col-span-3">
                 <Label>Quantities</Label>
                 <Select value={stockMode} onValueChange={(v) => setStockMode(v as StockImportMode)}>
@@ -233,7 +233,9 @@ export function PartImport() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="add">Add to the stock already there (goods received)</SelectItem>
-                    <SelectItem value="set">Set the location&apos;s count (stock-take)</SelectItem>
+                    <SelectItem value="set">
+                      Set the location&apos;s (or unsorted) count (stock-take)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

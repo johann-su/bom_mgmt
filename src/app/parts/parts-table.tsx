@@ -18,6 +18,8 @@ import { PartThumb } from "@/components/part-thumb";
 export type PartsTableRow = PartListRow & {
   thumb: string | null;
   locations: { code: string; path: string }[];
+  // Has stock that isn't put away in a location yet.
+  unsorted: boolean;
 };
 
 export function PartsTable({ rows }: { rows: PartsTableRow[] }) {
@@ -53,6 +55,11 @@ export function PartsTable({ rows }: { rows: PartsTableRow[] }) {
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
+                    {row.unsorted && (
+                      <Badge variant="outline" title="Not put away in a location yet">
+                        Unsorted
+                      </Badge>
+                    )}
                     {row.locations.slice(0, 3).map((l) => (
                       <Badge key={l.code} variant="secondary" className="font-mono" title={l.path}>
                         {l.code}

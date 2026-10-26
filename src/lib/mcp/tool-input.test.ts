@@ -6,6 +6,7 @@ import {
   partFormValues,
   readAttributes,
   resolveLocation,
+  resolveStockPlace,
   type StoredPart,
 } from "@/lib/mcp/tool-input";
 import { parsePartInput } from "@/lib/part-input";
@@ -33,6 +34,16 @@ test("resolveLocation rejects an unknown location with codes to pick from", () =
     () => resolveLocation(LOCATIONS, "Z/9"),
     (err) => err instanceof ToolError && /A\/1/.test(err.message),
   );
+});
+
+// "unsorted" is the pile of stock not put away yet (null) — but a real
+// location with that code is what the user means, so it wins.
+test("resolveStockPlace maps \"unsorted\" to null unless a location has that code", () => {
+  assert.equal(resolveStockPlace(LOCATIONS, "Unsorted"), null);
+  assert.equal(resolveStockPlace(LOCATIONS, "A/1"), "loc-a1");
+  const named = [...LOCATIONS, { id: "loc-u", code: "UNSORTED", path: "Unsorted" }];
+  assert.equal(resolveStockPlace(named, "unsorted"), "loc-u");
+  assert.throws(() => resolveStockPlace(LOCATIONS, "Z/9"), ToolError);
 });
 
 test("readAttributes accepts a {key, value} list or a plain object", () => {

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, ilike, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, exists, gt, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { categories, parts, stock } from "@/db/schema";
 
@@ -26,12 +26,22 @@ export async function listParts(filters: {
   q?: string;
   categoryId?: string | null;
   lowStock?: boolean;
+  // Only parts with stock that isn't put away in a location yet.
+  unsorted?: boolean;
   limit?: number;
 }) {
   const conditions = [
     filters.q ? partSearchFilter(filters.q) : undefined,
     filters.categoryId ? eq(parts.categoryId, filters.categoryId) : undefined,
     filters.lowStock ? and(isNotNull(parts.minStock), sql`${totalStock} < ${parts.minStock}`) : undefined,
+    filters.unsorted
+      ? exists(
+          db
+            .select({ one: sql`1` })
+            .from(stock)
+            .where(and(eq(stock.partId, parts.id), isNull(stock.locationId), gt(stock.quantity, 0))),
+        )
+      : undefined,
   ].filter(Boolean);
 
   return db
@@ -56,13 +66,16 @@ export async function listParts(filters: {
 export type PartListRow = Awaited<ReturnType<typeof listParts>>[number];
 
 // Location ids holding stock (> 0) of each part, for the "where is it" column.
-export async function stockLocationsByPart(partIds: string[]): Promise<Map<string, string[]>> {
+// null stands for the part's unsorted pile.
+export async function stockLocationsByPart(
+  partIds: string[],
+): Promise<Map<string, (string | null)[]>> {
   if (partIds.length === 0) return new Map();
   const rows = await db
     .select({ partId: stock.partId, locationId: stock.locationId })
     .from(stock)
     .where(and(inArray(stock.partId, partIds), gt(stock.quantity, 0)));
-  const out = new Map<string, string[]>();
+  const out = new Map<string, (string | null)[]>();
   for (const r of rows) out.set(r.partId, [...(out.get(r.partId) ?? []), r.locationId]);
   return out;
 }

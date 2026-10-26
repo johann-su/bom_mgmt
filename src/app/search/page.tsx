@@ -65,8 +65,9 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           rows={rows.map((r) => ({
             ...r,
             thumb: thumbs.get(r.id) ?? null,
+            unsorted: (where.get(r.id) ?? []).includes(null),
             locations: (where.get(r.id) ?? [])
-              .map((id) => byId.get(id))
+              .map((id) => (id ? byId.get(id) : undefined))
               .filter((l) => !!l)
               .map((l) => ({ code: l.code, path: l.path })),
           }))}

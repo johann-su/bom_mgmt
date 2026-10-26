@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Combobox, type ComboboxOption } from "@/components/combobox";
+import { fromPickerValue, UNSORTED_VALUE } from "@/lib/stock";
 import { LocationPicker } from "@/components/location-picker";
 
 export type StockMode = "add" | "remove" | "set" | "move";
@@ -35,7 +36,8 @@ export type StockPart = { id: string; name: string; unit: string };
 
 // One dialog for every stock change. Fix the part (part page), the location
 // (location page), or both (a row's "change" button); whatever isn't fixed
-// gets a picker.
+// gets a picker. Location values are picker values: UNSORTED_VALUE stands for
+// the unsorted pile, and is sent to the actions as null.
 export function StockDialog({
   part,
   partOptions,
@@ -51,7 +53,8 @@ export function StockDialog({
   partOptions?: (ComboboxOption & { unit: string })[];
   locationId?: string;
   locations: LocationOption[];
-  // Current quantity of the (fixed) part per location id.
+  // Current quantity of the (fixed) part per picker value (location id, or
+  // UNSORTED_VALUE).
   stockByLocation?: Record<string, number>;
   modes?: StockMode[];
   initialMode?: StockMode;
@@ -75,6 +78,10 @@ export function StockDialog({
       null);
   const current = locationId ? (stockByLocation[locationId] ?? 0) : null;
   const location = locations.find((l) => l.id === locationId);
+  const placeLabel =
+    locationId === UNSORTED_VALUE
+      ? "Unsorted"
+      : location && `${location.code}${location.name ? ` · ${location.name}` : ""}`;
 
   function reset() {
     setQuantity("");
@@ -87,18 +94,24 @@ export function StockDialog({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!chosenPart || !locationId) return;
+    if (!chosenPart || !locationId || (mode === "move" && !toLocationId)) return;
     startTransition(async () => {
       const result =
         mode === "move"
           ? await moveStock({
               partId: chosenPart.id,
-              fromLocationId: locationId,
-              toLocationId: toLocationId ?? "",
+              fromLocationId: fromPickerValue(locationId),
+              toLocationId: fromPickerValue(toLocationId!),
               quantity,
               note,
             })
-          : await changeStock({ partId: chosenPart.id, locationId, mode, quantity, note });
+          : await changeStock({
+              partId: chosenPart.id,
+              locationId: fromPickerValue(locationId),
+              mode,
+              quantity,
+              note,
+            });
       if (result.error) {
         toast.error(result.error);
         return;
@@ -124,7 +137,7 @@ export function StockDialog({
           <DialogHeader>
             <DialogTitle>{part ? part.name : "Put a part here"}</DialogTitle>
             <DialogDescription>
-              {location ? `${location.code}${location.name ? ` · ${location.name}` : ""}` : "Change stock"}
+              {placeLabel || "Change stock"}
               {current !== null && chosenPart && ` — ${formatQuantity(current, chosenPart.unit)} here now`}
             </DialogDescription>
           </DialogHeader>
@@ -158,7 +171,12 @@ export function StockDialog({
           {!fixedLocationId && (
             <div className="grid gap-2">
               <Label>{mode === "move" ? "From" : "Location"}</Label>
-              <LocationPicker locations={locations} value={locationId} onChange={setLocationId} />
+              <LocationPicker
+                locations={locations}
+                value={locationId}
+                onChange={setLocationId}
+                allowUnsorted
+              />
             </div>
           )}
 
@@ -170,6 +188,7 @@ export function StockDialog({
                 value={toLocationId}
                 onChange={setToLocationId}
                 exclude={locationId ? new Set([locationId]) : undefined}
+                allowUnsorted
               />
             </div>
           )}

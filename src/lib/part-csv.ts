@@ -82,8 +82,8 @@ export const PART_CSV_TEMPLATE: { field: PartCsvField; header: string; help: str
   { field: "minStock", header: "Min stock", help: "Whole number; warns when stock falls below it.", examples: [5, 50] },
   { field: "orderUrl", header: "Order link", help: "http(s) URL of the product page.", examples: ["https://www.digikey.com/", ""] },
   { field: "notes", header: "Notes", help: "Text.", examples: ["", ""] },
-  { field: "location", header: "Location", help: "Code of an existing location (e.g. A/1) or its full path. Needed to book stock.", examples: ["A/1", "B"] },
-  { field: "quantity", header: "Quantity", help: "Whole number of pieces at that location. Needs a Location.", examples: [10, 200] },
+  { field: "location", header: "Location", help: "Code of an existing location (e.g. A/1) or its full path. Empty (or \"unsorted\") books the quantity as unsorted.", examples: ["A/1", "B"] },
+  { field: "quantity", header: "Quantity", help: "Whole number of pieces at that location, or unsorted when there is none.", examples: [10, 200] },
 ];
 
 /** An attribute column for the template and format guide; any number may follow. */
@@ -215,7 +215,8 @@ export type PlannedPartRow = {
   // An existing part, or the index of the first row in this file that
   // creates the part (so later rows with the same MPN update that one).
   target: { existing: string } | { created: number };
-  stock: { locationId: string; quantity: number } | null;
+  // A null locationId is the part's unsorted pile.
+  stock: { locationId: string | null; quantity: number } | null;
 };
 
 export type PartImportPlan = {
@@ -227,6 +228,7 @@ export type KnownPart = { id: string; name: string; mpn: string };
 export type KnownLocation = { id: string; code: string; path: string };
 
 const norm = (s: string) => s.trim().toLowerCase();
+const UNSORTED = "unsorted";
 
 /**
  * Plans the import. A row needs a name or an MPN; an empty cell never
@@ -305,18 +307,21 @@ export function planPartImport(
     let stock: PlannedPartRow["stock"] = null;
     const location = cell("location");
     const rawQuantity = cell("quantity");
-    if (location) {
+    // "unsorted" spelled out means the pile — unless a location is called that.
+    const unsorted = !location || (norm(location) === UNSORTED && !locationByKey.has(UNSORTED));
+    // Spreadsheets love "1,000" and "25.0".
+    const cleaned = rawQuantity.replace(/[\s,']/g, "").replace(/\.0+$/, "");
+    if (cleaned && !/^\d+$/.test(cleaned)) return fail(`Quantity "${rawQuantity}" is not a whole number`);
+    if (!unsorted) {
       const locationId = locationByKey.get(norm(location));
       if (!locationId) return fail(`Location "${location}" not found`);
-      // Spreadsheets love "1,000" and "25.0".
-      const cleaned = rawQuantity.replace(/[\s,']/g, "").replace(/\.0+$/, "");
-      if (cleaned && !/^\d+$/.test(cleaned)) return fail(`Quantity "${rawQuantity}" is not a whole number`);
       stock = { locationId, quantity: cleaned ? Number(cleaned) : 0 };
     }
-    // A quantity without a location has nowhere to go; it's typically an
-    // order export's "Qty" — fine to ignore when no location is mapped.
-    else if (rawQuantity && mapping.location !== undefined) {
-      return fail("Quantity given without a location");
+    // A quantity with no location (an empty cell, or no Location column, as
+    // in an order export) is on hand but not put away yet: it goes to the
+    // part's unsorted pile.
+    else if (cleaned) {
+      stock = { locationId: null, quantity: Number(cleaned) };
     }
 
     const target = resolveTarget(name, mpn, known.parts, created);
