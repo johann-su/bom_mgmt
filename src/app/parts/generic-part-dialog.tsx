@@ -169,13 +169,13 @@ export function GenericPartDialog({
                     title={t.title}
                     onClick={() => setTypeIds((prev) => ({ ...prev, [family.id]: t.id }))}
                     className={cn(
-                      "grid justify-items-center gap-1 rounded-md border p-1.5 text-center hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      "grid min-w-0 grid-cols-[minmax(0,1fr)] justify-items-center gap-1 rounded-md border p-1.5 text-center hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       on && "border-primary bg-accent/50 ring-1 ring-primary",
                     )}
                   >
                     <IconTile icons={iconsFor([t.icon])} className="size-10" />
                     <span className="line-clamp-2 text-[0.7rem] leading-tight">{t.label}</span>
-                    <span className="truncate text-[0.6rem] leading-none text-muted-foreground">{t.detail}</span>
+                    <span className="max-w-full truncate text-[0.6rem] leading-none text-muted-foreground">{t.detail}</span>
                   </button>
                 );
               })}

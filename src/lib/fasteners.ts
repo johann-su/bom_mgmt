@@ -25,8 +25,9 @@ const PITCH: Record<string, number> = {
 };
 
 /**
- * Per-size dimensions. Screws: [head Ø, head height, drive size];
- * hex-head screws and nuts: [width across flats, head/nut height];
+ * Per-size dimensions. Screws: [head Ø, head height, hex key] — or just
+ * [head Ø, head height] with the drive size in driveSizes (Torx, Phillips,
+ * slot); hex-head screws and nuts: [width across flats, head/nut height];
  * set screws: [hex key]; washers: [inner Ø, outer Ø, thickness];
  * inserts: [] (they vary by maker).
  */
@@ -41,7 +42,21 @@ export type FastenerType = {
   alias: string; // the older DIN number people still search for, or ""
   kind: Kind;
   category: string; // suggested category; "Fasteners" is offered as its parent
-  drive?: string; // "Hex socket", "Torx"; the dims hold its size
+  drive?: string; // "Hex socket", "Torx", "Phillips"
+  /** The drive's size per thread size when it isn't a hex key: "T10", "PH1",
+   *  "0.8 mm" (slot width). */
+  driveSizes?: Record<string, string>;
+  /** Cross-recess type, part of the designation: ISO 7045 comes as H
+   *  (Phillips) and Z (Pozidriv). */
+  recess?: "H" | "Z";
+  /** The wizard tile it's grouped under, when one head shape comes in several
+   *  drives (each its own standard); else the type is its own tile. */
+  head?: string;
+  /** Material ids it's offered in, when not every one applies. */
+  materials?: string[];
+  /** Grades that differ from the material's default for this kind — cross-
+   *  recessed steel screws are 4.8, not 8.8. */
+  grades?: Record<string, string>;
   dims: Dims;
   /** Common lengths, for the length chips; any length can still be typed. */
   lengths?: number[];
@@ -66,9 +81,60 @@ const SET_SCREW_KEYS: Dims = {
   M12: [6],
 };
 
+// Hexalobular (Torx) socket sizes, shared by ISO 14579/14580/14581/14583.
+const TORX: Record<string, string> = {
+  M2: "T6",
+  "M2.5": "T8",
+  M3: "T10",
+  M4: "T20",
+  M5: "T25",
+  M6: "T30",
+  M8: "T45",
+  M10: "T50",
+  M12: "T55",
+};
+// Cross-recess numbers (Phillips PH / Pozidriv PZ), ISO 7045 and 7046.
+const RECESS: Record<string, string> = { M2: "0", "M2.5": "1", M3: "1", M4: "2", M5: "2", M6: "3", M8: "4", M10: "4" };
+const PH = Object.fromEntries(Object.entries(RECESS).map(([size, n]) => [size, `PH${n}`]));
+const PZ = Object.fromEntries(Object.entries(RECESS).map(([size, n]) => [size, `PZ${n}`]));
+// Slot width n, ISO 1207 and ISO 2009.
+const SLOT: Record<string, string> = {
+  M2: "0.5 mm",
+  "M2.5": "0.6 mm",
+  M3: "0.8 mm",
+  M4: "1.2 mm",
+  M5: "1.2 mm",
+  M6: "1.6 mm",
+  M8: "2 mm",
+  M10: "2.5 mm",
+};
+// Countersunk heads [dk, k]: ISO 7046, 14581 and 2009 share them.
+const CSK_HEAD: Dims = {
+  M2: [3.8, 1.2],
+  "M2.5": [4.7, 1.5],
+  M3: [5.5, 1.65],
+  M4: [8.4, 2.7],
+  M5: [9.3, 2.7],
+  M6: [11.3, 3.3],
+  M8: [15.8, 4.65],
+  M10: [18.3, 5],
+};
+// Cross-recessed and slotted screws are sold in these; steel ones are 4.8.
+const RECESSED_MATERIALS = ["a2", "a4", "zinc", "brass", "nylon"];
+const RECESSED_GRADES = { zinc: "4.8 zinc" };
+
+/** Tile labels for heads that come in several drives. */
+const HEADS: Record<string, { label: string; icon: string }> = {
+  "socket-cap": { label: "Socket head cap screw", icon: "screw/heads-sideways/machine/socket-cap" },
+  countersunk: { label: "Countersunk screw", icon: "screw/heads-sideways/machine/countersunk" },
+  pan: { label: "Pan head screw", icon: "screw/heads-sideways/machine/pan" },
+  cheese: { label: "Cheese head screw", icon: "screw/heads-sideways/machine/cheese" },
+};
+
 export const FASTENER_TYPES: FastenerType[] = [
   {
     id: "iso4762",
+    head: "socket-cap",
     icons: ["screw/heads-sideways/machine/socket-cap", "screw/drives/hex"],
     label: "Socket head cap screw",
     title: "Hexagon socket head cap screw",
@@ -87,6 +153,31 @@ export const FASTENER_TYPES: FastenerType[] = [
       M8: [13, 8, 6],
       M10: [16, 10, 8],
       M12: [18, 12, 10],
+    },
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso14579",
+    head: "socket-cap",
+    icons: ["screw/heads-sideways/machine/socket-cap", "screw/drives/torx"],
+    label: "Torx socket head cap screw",
+    title: "Hexalobular (Torx) socket head cap screw",
+    standard: "ISO 14579",
+    alias: "",
+    kind: "screw",
+    category: "Screws",
+    drive: "Torx",
+    driveSizes: TORX,
+    dims: {
+      M2: [3.8, 2],
+      "M2.5": [4.5, 2.5],
+      M3: [5.5, 3],
+      M4: [7, 4],
+      M5: [8.5, 5],
+      M6: [10, 6],
+      M8: [13, 8],
+      M10: [16, 10],
+      M12: [18, 12],
     },
     lengths: SCREW_LENGTHS,
   },
@@ -113,6 +204,7 @@ export const FASTENER_TYPES: FastenerType[] = [
   },
   {
     id: "iso10642",
+    head: "countersunk",
     icons: ["screw/heads-sideways/machine/countersunk", "screw/drives/hex"],
     label: "Countersunk screw",
     title: "Hexagon socket countersunk head screw",
@@ -129,6 +221,202 @@ export const FASTENER_TYPES: FastenerType[] = [
       M8: [17.92, 4.96, 5],
       M10: [22.4, 6.2, 6],
       M12: [26.88, 7.44, 8],
+    },
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso14581",
+    head: "countersunk",
+    icons: ["screw/heads-sideways/machine/countersunk", "screw/drives/torx"],
+    label: "Torx countersunk screw",
+    title: "Hexalobular (Torx) socket countersunk head screw",
+    standard: "ISO 14581",
+    alias: "",
+    kind: "screw",
+    category: "Screws",
+    drive: "Torx",
+    driveSizes: TORX,
+    dims: CSK_HEAD,
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso7046h",
+    head: "countersunk",
+    icons: ["screw/heads-sideways/machine/countersunk", "screw/drives/phillips"],
+    label: "Phillips countersunk screw",
+    title: "Cross-recessed (Phillips) countersunk head screw",
+    standard: "ISO 7046",
+    alias: "DIN 965",
+    recess: "H",
+    kind: "screw",
+    category: "Screws",
+    drive: "Phillips",
+    driveSizes: PH,
+    materials: RECESSED_MATERIALS,
+    grades: RECESSED_GRADES,
+    dims: CSK_HEAD,
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso7046z",
+    head: "countersunk",
+    icons: ["screw/heads-sideways/machine/countersunk", "screw/drives/pozidriv"],
+    label: "Pozidriv countersunk screw",
+    title: "Cross-recessed (Pozidriv) countersunk head screw",
+    standard: "ISO 7046",
+    alias: "DIN 965",
+    recess: "Z",
+    kind: "screw",
+    category: "Screws",
+    drive: "Pozidriv",
+    driveSizes: PZ,
+    materials: RECESSED_MATERIALS,
+    grades: RECESSED_GRADES,
+    dims: CSK_HEAD,
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso2009",
+    head: "countersunk",
+    icons: ["screw/heads-sideways/machine/countersunk", "screw/drives/slotted"],
+    label: "Slotted countersunk screw",
+    title: "Slotted countersunk head screw",
+    standard: "ISO 2009",
+    alias: "DIN 963",
+    kind: "screw",
+    category: "Screws",
+    drive: "Slotted",
+    driveSizes: SLOT,
+    materials: RECESSED_MATERIALS,
+    grades: RECESSED_GRADES,
+    dims: CSK_HEAD,
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso7045h",
+    head: "pan",
+    icons: ["screw/heads-sideways/machine/pan", "screw/drives/phillips"],
+    label: "Phillips pan head screw",
+    title: "Cross-recessed (Phillips) pan head screw",
+    standard: "ISO 7045",
+    alias: "DIN 7985",
+    recess: "H",
+    kind: "screw",
+    category: "Screws",
+    drive: "Phillips",
+    driveSizes: PH,
+    materials: RECESSED_MATERIALS,
+    grades: RECESSED_GRADES,
+    dims: {
+      M2: [4, 1.6],
+      "M2.5": [5, 2],
+      M3: [6, 2.4],
+      M4: [8, 3.1],
+      M5: [10, 3.8],
+      M6: [12, 4.6],
+      M8: [16, 6],
+      M10: [20, 7.5],
+    },
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso7045z",
+    head: "pan",
+    icons: ["screw/heads-sideways/machine/pan", "screw/drives/pozidriv"],
+    label: "Pozidriv pan head screw",
+    title: "Cross-recessed (Pozidriv) pan head screw",
+    standard: "ISO 7045",
+    alias: "DIN 7985",
+    recess: "Z",
+    kind: "screw",
+    category: "Screws",
+    drive: "Pozidriv",
+    driveSizes: PZ,
+    materials: RECESSED_MATERIALS,
+    grades: RECESSED_GRADES,
+    dims: {
+      M2: [4, 1.6],
+      "M2.5": [5, 2],
+      M3: [6, 2.4],
+      M4: [8, 3.1],
+      M5: [10, 3.8],
+      M6: [12, 4.6],
+      M8: [16, 6],
+      M10: [20, 7.5],
+    },
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso14583",
+    head: "pan",
+    icons: ["screw/heads-sideways/machine/pan", "screw/drives/torx"],
+    label: "Torx pan head screw",
+    title: "Hexalobular (Torx) socket pan head screw",
+    standard: "ISO 14583",
+    alias: "",
+    kind: "screw",
+    category: "Screws",
+    drive: "Torx",
+    driveSizes: TORX,
+    dims: {
+      M2: [4, 1.6],
+      "M2.5": [5, 2.1],
+      M3: [5.6, 2.4],
+      M4: [8, 3.1],
+      M5: [9.5, 3.7],
+      M6: [12, 4.6],
+      M8: [16, 6],
+      M10: [20, 7.5],
+    },
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso14580",
+    head: "cheese",
+    icons: ["screw/heads-sideways/machine/cheese", "screw/drives/torx"],
+    label: "Torx cheese head screw",
+    title: "Hexalobular (Torx) socket cheese head screw",
+    standard: "ISO 14580",
+    alias: "",
+    kind: "screw",
+    category: "Screws",
+    drive: "Torx",
+    driveSizes: TORX,
+    dims: {
+      M2: [3.8, 1.55],
+      "M2.5": [4.5, 1.85],
+      M3: [5.5, 2.4],
+      M4: [7, 3.1],
+      M5: [8.5, 3.65],
+      M6: [10, 4.4],
+      M8: [13, 5.8],
+      M10: [16, 6.9],
+    },
+    lengths: SCREW_LENGTHS,
+  },
+  {
+    id: "iso1207",
+    head: "cheese",
+    icons: ["screw/heads-sideways/machine/cheese", "screw/drives/slotted"],
+    label: "Slotted cheese head screw",
+    title: "Slotted cheese head screw",
+    standard: "ISO 1207",
+    alias: "DIN 84",
+    kind: "screw",
+    category: "Screws",
+    drive: "Slotted",
+    driveSizes: SLOT,
+    materials: RECESSED_MATERIALS,
+    grades: RECESSED_GRADES,
+    dims: {
+      M2: [3.8, 1.4],
+      "M2.5": [4.5, 1.8],
+      M3: [5.5, 2],
+      M4: [7, 2.6],
+      M5: [8.5, 3.3],
+      M6: [10, 3.9],
+      M8: [13, 5],
+      M10: [16, 6],
     },
     lengths: SCREW_LENGTHS,
   },
@@ -331,8 +619,13 @@ export function fastenerSizes(type: FastenerType): string[] {
 }
 
 export function materialsFor(type: FastenerType): FastenerMaterial[] {
-  return FASTENER_MATERIALS.filter((m) => m.grade[type.kind]);
+  return FASTENER_MATERIALS.filter(
+    (m) => m.grade[type.kind] && (!type.materials || type.materials.includes(m.id)),
+  );
 }
+
+const gradeOf = (type: FastenerType, material: FastenerMaterial) =>
+  type.grades?.[material.id] ?? material.grade[type.kind];
 
 export function hasLength(type: FastenerType): boolean {
   return type.kind === "screw" || type.kind === "setscrew" || type.kind === "insert";
@@ -374,8 +667,8 @@ export function generateFastener(spec: FastenerSpec): GeneratedPart | { error: s
   if (!type) return { error: "Unknown fastener type" };
   const dims = type.dims[spec.size];
   if (!dims) return { error: `${type.label} isn't standardized in ${spec.size}` };
-  const material = FASTENER_MATERIALS.find((m) => m.id === spec.material);
-  const grade = material?.grade[type.kind];
+  const material = materialsFor(type).find((m) => m.id === spec.material);
+  const grade = material && gradeOf(type, material);
   if (!material || !grade) return { error: `${type.label} isn't offered in that material` };
   const length = hasLength(type) ? spec.length : undefined;
   if (hasLength(type) && !(length && length > 0 && length <= 500)) {
@@ -384,7 +677,7 @@ export function generateFastener(spec: FastenerSpec): GeneratedPart | { error: s
 
   const size = length ? `${spec.size}×${length}` : spec.size;
   // The designation, ASCII so it's easy to type into a search or BOM.
-  const designation = [type.standard, length ? `${spec.size}x${length}` : spec.size, grade]
+  const designation = [type.standard, length ? `${spec.size}x${length}` : spec.size, type.recess, grade]
     .filter(Boolean)
     .join(" ");
   const standardText = type.standard
@@ -431,7 +724,7 @@ function attributesFor(
   if (type.kind === "screw" && type.drive) {
     add("Head Ø", mm(dims[0]));
     add("Head height", mm(dims[1]));
-    add("Drive", `${type.drive} ${mm(dims[2])}`);
+    add("Drive", `${type.drive} ${type.driveSizes?.[size] ?? mm(dims[2])}`);
   } else if (type.kind === "screw" || type.kind === "nut") {
     add("Width across flats", mm(dims[0]));
     add(type.kind === "nut" ? "Height" : "Head height", mm(dims[1]));
@@ -442,55 +735,87 @@ function attributesFor(
   return out;
 }
 
+// One wizard tile per head shape; where it comes in several drives (each its
+// own standard — ISO 4762 hex, ISO 14579 Torx), a "Drive" choice picks one.
+const groups = new Map<string, FastenerType[]>();
+for (const type of FASTENER_TYPES) {
+  const key = type.head ?? type.id;
+  groups.set(key, [...(groups.get(key) ?? []), type]);
+}
+
+const designationOf = (type: FastenerType) =>
+  type.standard ? `${type.standard}${type.alias ? ` / ${type.alias}` : ""}` : "";
+
+function fastenerParams(type: FastenerType, values: Record<string, string>): GenericParam[] {
+  const params: GenericParam[] = [
+    {
+      kind: "select",
+      id: "size",
+      label: "Size",
+      options: fastenerSizes(type).map((size) => ({ value: size, label: size })),
+      default: "M3",
+    },
+    {
+      kind: "select",
+      id: "material",
+      label: "Material",
+      options: materialsFor(type).map((m) => ({ value: m.id, label: m.label })),
+    },
+  ];
+  if (hasLength(type)) {
+    params.push({
+      kind: "range",
+      id: "length",
+      label: "Length (mm)",
+      options: commonLengths(type, values.size ?? "").map(String),
+      parse: (raw) => {
+        const length = parseLength(raw);
+        return length === null ? null : String(length);
+      },
+      placeholder: "Other length",
+    });
+  }
+  return params;
+}
+
 export const FASTENER_FAMILY: GenericFamily = {
   id: "fasteners",
   label: "Fasteners",
   description: "Fills in the name, ISO/DIN designation and dimensions.",
-  types: FASTENER_TYPES.map((type) => ({
-    id: type.id,
-    label: type.label,
-    detail: type.standard || "no standard",
-    title: [type.title, type.standard && `${type.standard}${type.alias ? ` / ${type.alias}` : ""}`]
-      .filter(Boolean)
-      .join("\n"),
-    icon: type.icons[0],
-    params: (values) => {
-      const params: GenericParam[] = [
-        {
-          kind: "select",
-          id: "size",
-          label: "Size",
-          options: fastenerSizes(type).map((size) => ({ value: size, label: size })),
-          default: "M3",
-        },
-        {
-          kind: "select",
-          id: "material",
-          label: "Material",
-          options: materialsFor(type).map((m) => ({ value: m.id, label: m.label })),
-        },
-      ];
-      if (hasLength(type)) {
-        params.push({
-          kind: "range",
-          id: "length",
-          label: "Length (mm)",
-          options: commonLengths(type, values.size ?? "").map(String),
-          parse: (raw) => {
-            const length = parseLength(raw);
-            return length === null ? null : String(length);
-          },
-          placeholder: "Other length",
-        });
-      }
-      return params;
-    },
-    generate: (values) =>
-      generateFastener({
-        type: type.id,
-        size: values.size,
-        material: values.material,
-        length: values.length ? Number(values.length) : undefined,
-      }),
-  })),
+  types: [...groups].map(([key, variants]) => {
+    const head = HEADS[key];
+    const first = variants[0];
+    // The variant the "drive" value picks; the first if it isn't one of them.
+    const pick = (values: Record<string, string>) => variants.find((t) => t.id === values.drive) ?? first;
+    return {
+      id: key,
+      label: head?.label ?? first.label,
+      detail:
+        variants.length > 1
+          ? variants.map((t) => t.drive?.replace(" socket", "")).join(", ")
+          : first.standard || "no standard",
+      title: variants.map((t) => [t.title, designationOf(t)].filter(Boolean).join(" — ")).join("\n"),
+      icon: head?.icon ?? first.icons[0],
+      params: (values) => [
+        ...(variants.length > 1
+          ? [
+              {
+                kind: "select" as const,
+                id: "drive",
+                label: "Drive",
+                options: variants.map((t) => ({ value: t.id, label: `${t.drive} — ${t.standard}` })),
+              },
+            ]
+          : []),
+        ...fastenerParams(pick(values), values),
+      ],
+      generate: (values) =>
+        generateFastener({
+          type: pick(values).id,
+          size: values.size,
+          material: values.material,
+          length: values.length ? Number(values.length) : undefined,
+        }),
+    };
+  }),
 };

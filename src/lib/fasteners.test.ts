@@ -95,3 +95,25 @@ test("parseLength accepts mm, decimal commas and a unit, and rejects nonsense", 
   for (const bad of ["", "0", "-3", "abc", "1000", "3.141"]) assert.equal(parseLength(bad), null, bad);
 });
 
+
+test("Torx, Phillips, Pozidriv and slotted heads are their own standards with their own drive sizes", () => {
+  const torx = ok(generateFastener({ type: "iso14579", size: "M3", length: 8, material: "a2" }));
+  assert.equal(torx.name, "Torx socket head cap screw M3×8 A2-70");
+  assert.equal(torx.mpn, "ISO 14579 M3x8 A2-70");
+  assert.equal(attr(torx, "Drive"), "Torx T10");
+
+  const phillips = ok(generateFastener({ type: "iso7045h", size: "M4", length: 10, material: "zinc" }));
+  assert.equal(attr(phillips, "Drive"), "Phillips PH2");
+  // Cross-recessed steel screws are 4.8, not the 8.8 of socket screws.
+  assert.equal(phillips.name, "Phillips pan head screw M4×10 4.8 zinc");
+  // Phillips (H) and Pozidriv (Z) share ISO 7045; the recess type keeps
+  // their designations apart.
+  const pozidriv = ok(generateFastener({ type: "iso7045z", size: "M4", length: 10, material: "zinc" }));
+  assert.equal(phillips.mpn, "ISO 7045 M4x10 H 4.8 zinc");
+  assert.equal(pozidriv.mpn, "ISO 7045 M4x10 Z 4.8 zinc");
+
+  const slotted = ok(generateFastener({ type: "iso1207", size: "M3", length: 6, material: "brass" }));
+  assert.equal(attr(slotted, "Drive"), "Slotted 0.8 mm");
+  // 12.9 black oxide isn't made with a slot or cross recess.
+  assert.ok("error" in generateFastener({ type: "iso7046h", size: "M3", length: 8, material: "black" }));
+});

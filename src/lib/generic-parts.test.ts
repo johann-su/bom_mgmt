@@ -3,13 +3,14 @@ import assert from "node:assert/strict";
 import { genericType } from "@/lib/generic-families";
 import { generateRange, parseCount, resolveValues, sortRange, type GenericType } from "@/lib/generic-parts";
 
-const socketHead = genericType("fasteners", "iso4762")!;
+const socketHead = genericType("fasteners", "socket-cap")!;
 const buttonHead = genericType("fasteners", "iso7380")!;
 const xh = genericType("connectors", "jst-xh")!;
 
 test("resolveValues fills defaults and keeps choices the new type still offers", () => {
-  // Size defaults to M3 (the select's default), material to the first option.
-  assert.deepEqual(resolveValues(socketHead, {}).values, { size: "M3", material: "a2" });
+  // Size defaults to M3 (the select's default), drive and material to the
+  // first option.
+  assert.deepEqual(resolveValues(socketHead, {}).values, { drive: "iso4762", size: "M3", material: "a2" });
   // ISO 7380 has no M2: switching to it moves the size to its default, while
   // the still-valid material is kept.
   assert.deepEqual(resolveValues(buttonHead, { size: "M2", material: "black" }).values, {
@@ -62,4 +63,16 @@ test("sortRange and parseCount", () => {
   assert.deepEqual(sortRange(["12", "3", "12", "5.7"]), ["3", "5.7", "12"]);
   assert.equal(parseCount(" 4 ", 2, 20), "4");
   for (const bad of ["1", "21", "4.5", "-3", "", "four"]) assert.equal(parseCount(bad, 2, 20), null, bad);
+});
+
+test("a head shape that comes in several drives picks its standard by drive", () => {
+  const pan = genericType("fasteners", "pan")!;
+  const drives = resolveValues(pan, {}).params.find((p) => p.id === "drive");
+  assert.ok(drives && drives.kind === "select");
+  assert.deepEqual(drives.options.map((o) => o.value), ["iso7045h", "iso7045z", "iso14583"]);
+  const parts = generateRange(pan, { drive: "iso14583" }, ["8"]);
+  assert.ok(Array.isArray(parts));
+  assert.equal(parts[0].mpn, "ISO 14583 M3x8 A2-70");
+  // Switching to Phillips drops a material it isn't made in.
+  assert.equal(resolveValues(pan, { drive: "iso7045h", material: "black" }).values.material, "a2");
 });
