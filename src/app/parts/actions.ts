@@ -5,7 +5,8 @@ import { eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { categories, files, parts } from "@/db/schema";
 import { getSession } from "@/lib/auth";
-import { generateFasteners } from "@/lib/fasteners";
+import { genericType } from "@/lib/generic-families";
+import { generateRange } from "@/lib/generic-parts";
 import { MAX_UPLOAD_BYTES, remoteFilename } from "@/lib/file-kind";
 import * as mutations from "@/lib/part-mutations";
 import { storePartFiles } from "@/lib/part-files";
@@ -48,25 +49,26 @@ async function resolveNewCategory<T extends Record<string, unknown>>(
 }
 
 /**
- * Creates one generic fastener part per length (src/lib/fasteners.ts), filed
- * under an existing matching category or a new one. The parts are generated
- * here from the spec, not taken from the client. Parts that already exist
- * (same name or MPN) are skipped, so re-running a range only adds what's new.
+ * Creates one generic part per range value — a screw per length, a housing
+ * per pin count (src/lib/generic-parts.ts) — filed under an existing matching
+ * category or a new one. The parts are generated here from the spec, not
+ * taken from the client. Parts that already exist (same name or MPN) are
+ * skipped, so re-running a range only adds what's new.
  */
-export async function createFasteners(input: {
+export async function createGenericParts(input: {
+  family: string;
   type: string;
-  size: string;
-  material: string;
-  lengths: number[];
+  values: Record<string, string>;
+  range: string[];
 }): Promise<Result & { created?: number; skipped?: number }> {
   const session = await getSession();
   if (!session) return { error: "You must be signed in" };
-  const generated = generateFasteners({
-    type: String(input.type),
-    size: String(input.size),
-    material: String(input.material),
-    lengths: Array.isArray(input.lengths) ? input.lengths.map(Number) : [],
-  });
+  const type = genericType(String(input.family), String(input.type));
+  if (!type) return { error: "Unknown part type" };
+  const values = Object.fromEntries(
+    Object.entries(input.values ?? {}).map(([key, value]) => [key, String(value)]),
+  );
+  const generated = generateRange(type, values, Array.isArray(input.range) ? input.range.map(String) : []);
   if ("error" in generated) return generated;
 
   const lower = (values: string[]) => values.filter(Boolean).map((v) => v.toLowerCase());

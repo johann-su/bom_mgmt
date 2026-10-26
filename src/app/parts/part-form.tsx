@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, ImageIcon, Plus, Sparkles, X } from "lucide-react";
-import type { GeneratedFastener } from "@/lib/fasteners";
+import type { GeneratedPart } from "@/lib/generic-parts";
 import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { LocationPicker } from "@/components/location-picker";
 import { attachShopFiles, createPart, lookupOrderUrl, updatePart } from "./actions";
-import { FastenerDialog } from "./fastener-dialog";
+import { GenericPartDialog } from "./generic-part-dialog";
 import { fillAttributes, shopFiles, suggestCategory, type ShopFile } from "./product-fill";
 import { uploadPartFiles } from "./upload";
 
@@ -94,7 +94,8 @@ export function PartForm({
   const [offeredFiles, setOfferedFiles] = useState<(ShopFile & { checked: boolean })[]>([]);
   const [locationId, setLocationId] = useState<string | null>(null);
   // Catalogue icon shown as the thumbnail while the part has no image. Only
-  // "From standard" sets it (a generic fastener has no photo worth fetching);
+  // the "Generic part" wizard sets it (a generic screw or JST housing has no
+  // photo worth fetching);
   // editing a part keeps whatever it has.
   const [icon, setIcon] = useState(initial.icon);
   const [pending, startTransition] = useTransition();
@@ -119,20 +120,20 @@ export function PartForm({
     return true;
   }
 
-  // A fastener picked from a standard: unlike "Fill from link" it replaces
-  // the text fields and its own attributes, since the user just chose it —
+  // A generic part from the wizard: unlike "Fill from link" it replaces the
+  // text fields and its own attributes, since the user just chose it —
   // picking again (another length) must update the form, not keep the old.
-  function fillFromStandard(fastener: GeneratedFastener) {
+  function fillFromGeneric(generated: GeneratedPart) {
     const form = formRef.current;
     if (!form) return;
-    for (const name of ["name", "description", "mpn", "unit"] as const) {
+    for (const name of ["name", "description", "manufacturer", "mpn", "unit"] as const) {
       const input = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
-      if (input) input.value = fastener[name];
+      if (input) input.value = generated[name];
     }
-    if (categoryId === "none" || categoryId === "new") applyCategory(fastener.category);
-    setIcon(fastener.icon);
+    if (categoryId === "none" || categoryId === "new") applyCategory(generated.category);
+    setIcon(generated.icon);
     setAttributes((prev) =>
-      mergeAttributes(prev.filter((a) => a.key.trim() || a.value.trim()), fastener.attributes),
+      mergeAttributes(prev.filter((a) => a.key.trim() || a.value.trim()), generated.attributes),
     );
   }
 
@@ -255,7 +256,7 @@ export function PartForm({
         <CardHeader>
           <CardTitle className="text-base">Part</CardTitle>
           <CardAction>
-            <FastenerDialog onFill={fillFromStandard} allowRange={!part} />
+            <GenericPartDialog onFill={fillFromGeneric} allowRange={!part} />
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">

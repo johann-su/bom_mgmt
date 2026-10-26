@@ -1,10 +1,12 @@
 // Generates generic fastener parts (screws, nuts, washers, inserts) from the
-// ISO/DIN standards, for "New part → From standard". There is no free fastener
+// ISO/DIN standards, for the "Generic part" wizard. There is no free fastener
 // catalog to search, but a standard + size + length + material pins a
 // fastener down completely, so the name, description, designation and specs
 // are derived here instead of looked up. Dimensions are the standards' nominal
-// (max) values in mm. Pure: the dialog and the bulk-create action share it.
+// (max) values in mm. Pure; FASTENER_FAMILY at the bottom plugs it into the
+// wizard (src/lib/generic-parts.ts).
 
+import type { GeneratedPart, GenericFamily, GenericParam } from "@/lib/generic-parts";
 import type { PartAttribute } from "@/lib/part-attributes";
 
 type Kind = "screw" | "setscrew" | "nut" | "washer" | "insert";
@@ -320,17 +322,6 @@ export type FastenerSpec = {
   length?: number; // mm; required for screws and inserts, ignored otherwise
 };
 
-/** The part a spec describes, in the part form's terms. */
-export type GeneratedFastener = {
-  name: string;
-  description: string; // Markdown
-  mpn: string; // the standard designation, so BOM imports can match on it
-  unit: "pcs";
-  category: string[]; // broadest first, for suggestCategory
-  icon: string; // label-icon catalogue id, the part's thumbnail until it has a photo
-  attributes: PartAttribute[];
-};
-
 export function fastenerType(id: string): FastenerType | undefined {
   return FASTENER_TYPES.find((t) => t.id === id);
 }
@@ -378,7 +369,7 @@ const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const diameter = (size: string) => Number(size.slice(1)) || 0;
 
 /** Describes one fastener, or says which part of the spec doesn't exist. */
-export function generateFastener(spec: FastenerSpec): GeneratedFastener | { error: string } {
+export function generateFastener(spec: FastenerSpec): GeneratedPart | { error: string } {
   const type = fastenerType(spec.type);
   if (!type) return { error: "Unknown fastener type" };
   const dims = type.dims[spec.size];
@@ -406,9 +397,12 @@ export function generateFastener(spec: FastenerSpec): GeneratedFastener | { erro
     description: `${type.title}${standardText}, ${sizeText}, ${lowerFirst(materialText(material, grade))}.`,
     // Un-standardized parts have no designation to match a BOM on.
     mpn: type.standard ? designation : "",
+    manufacturer: "",
     unit: "pcs",
     category: ["Fasteners", type.category],
     icon: type.icons[0],
+    // Drive first, then the side view — as on a bin label.
+    preview: [...type.icons].reverse(),
     attributes: attributesFor(type, spec.size, dims, length, material, grade),
   };
 }
@@ -448,23 +442,55 @@ function attributesFor(
   return out;
 }
 
-/**
- * One part per length (or a single part for nuts and washers), for creating a
- * whole range at once. Duplicate lengths collapse; an invalid spec errors.
- */
-export function generateFasteners(
-  spec: Omit<FastenerSpec, "length"> & { lengths: number[] },
-): GeneratedFastener[] | { error: string } {
-  const type = fastenerType(spec.type);
-  if (!type) return { error: "Unknown fastener type" };
-  const lengths = hasLength(type) ? [...new Set(spec.lengths)].sort((a, b) => a - b) : [undefined];
-  if (lengths.length === 0) return { error: "Pick at least one length" };
-  if (lengths.length > 50) return { error: "Pick at most 50 lengths at once" };
-  const out: GeneratedFastener[] = [];
-  for (const length of lengths) {
-    const part = generateFastener({ ...spec, length });
-    if ("error" in part) return part;
-    out.push(part);
-  }
-  return out;
-}
+export const FASTENER_FAMILY: GenericFamily = {
+  id: "fasteners",
+  label: "Fasteners",
+  description: "Fills in the name, ISO/DIN designation and dimensions.",
+  types: FASTENER_TYPES.map((type) => ({
+    id: type.id,
+    label: type.label,
+    detail: type.standard || "no standard",
+    title: [type.title, type.standard && `${type.standard}${type.alias ? ` / ${type.alias}` : ""}`]
+      .filter(Boolean)
+      .join("\n"),
+    icon: type.icons[0],
+    params: (values) => {
+      const params: GenericParam[] = [
+        {
+          kind: "select",
+          id: "size",
+          label: "Size",
+          options: fastenerSizes(type).map((size) => ({ value: size, label: size })),
+          default: "M3",
+        },
+        {
+          kind: "select",
+          id: "material",
+          label: "Material",
+          options: materialsFor(type).map((m) => ({ value: m.id, label: m.label })),
+        },
+      ];
+      if (hasLength(type)) {
+        params.push({
+          kind: "range",
+          id: "length",
+          label: "Length (mm)",
+          options: commonLengths(type, values.size ?? "").map(String),
+          parse: (raw) => {
+            const length = parseLength(raw);
+            return length === null ? null : String(length);
+          },
+          placeholder: "Other length",
+        });
+      }
+      return params;
+    },
+    generate: (values) =>
+      generateFastener({
+        type: type.id,
+        size: values.size,
+        material: values.material,
+        length: values.length ? Number(values.length) : undefined,
+      }),
+  })),
+};

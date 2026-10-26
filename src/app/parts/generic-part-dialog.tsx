@@ -3,18 +3,15 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Ruler } from "lucide-react";
+import { Plus, Shapes } from "lucide-react";
+import { GENERIC_FAMILIES } from "@/lib/generic-families";
 import {
-  commonLengths,
-  FASTENER_TYPES,
-  fastenerSizes,
-  fastenerType,
-  generateFastener,
-  hasLength,
-  materialsFor,
-  parseLength,
-  type GeneratedFastener,
-} from "@/lib/fasteners";
+  rangeParam,
+  resolveValues,
+  sortRange,
+  type GeneratedPart,
+  type GenericValues,
+} from "@/lib/generic-parts";
 import { loadIcons, type LabelIcon } from "@/lib/label-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -36,25 +33,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createFasteners } from "./actions";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { createGenericParts } from "./actions";
 
-// "From standard": pick a fastener by standard, size, material and length(s).
-// One length fills the part form; several (only offered for a new part)
-// create a part per length right away.
-export function FastenerDialog({
+// "Generic part": pick a family (fasteners, connectors), a type and its
+// parameters (src/lib/generic-parts.ts). One value of the range parameter
+// (length, pin count) fills the part form; several — only offered for a new
+// part — create a part each right away.
+export function GenericPartDialog({
   onFill,
   allowRange,
 }: {
-  onFill: (part: GeneratedFastener) => void;
+  onFill: (part: GeneratedPart) => void;
   allowRange: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [typeId, setTypeId] = useState(FASTENER_TYPES[0].id);
-  const [size, setSize] = useState("M3");
-  const [materialId, setMaterialId] = useState("a2");
-  const [lengths, setLengths] = useState<number[]>([]);
-  const [otherLength, setOtherLength] = useState("");
+  const [familyId, setFamilyId] = useState(GENERIC_FAMILIES[0].id);
+  // The type picked in each family, so switching tabs back keeps it.
+  const [typeIds, setTypeIds] = useState<Record<string, string>>({});
+  // One value map for every type: shared ids (size, material, pins) carry
+  // over when switching type, and resolveValues drops what doesn't apply.
+  const [rawValues, setRawValues] = useState<GenericValues>({});
+  // Chosen range values (lengths, pin counts) per parameter id.
+  const [ranges, setRanges] = useState<Record<string, string[]>>({});
+  const [other, setOther] = useState("");
   const [pending, startTransition] = useTransition();
   // The label-icon catalogue is large; it's fetched the first time the dialog opens.
   const [icons, setIcons] = useState<Map<string, LabelIcon> | null>(null);
@@ -64,36 +67,41 @@ export function FastenerDialog({
   }, [open, icons]);
   const iconsFor = (ids: string[]) => ids.flatMap((id) => icons?.get(id) ?? []);
 
-  const type = fastenerType(typeId) ?? FASTENER_TYPES[0];
-  const sizes = fastenerSizes(type);
-  const materials = materialsFor(type);
-  const withLength = hasLength(type);
-  // Keep the size and material across type changes where the new type has them.
-  const currentSize = sizes.includes(size) ? size : sizes.includes("M3") ? "M3" : sizes[0];
-  const material = materials.find((m) => m.id === materialId) ?? materials[0];
-  const chosen = withLength ? [...lengths].sort((a, b) => a - b) : [];
-  const chips = withLength ? [...new Set([...commonLengths(type, currentSize), ...lengths])].sort((a, b) => a - b) : [];
-  const previews = (withLength ? chosen : [undefined]).map((length) =>
-    generateFastener({ type: type.id, size: currentSize, material: material.id, length }),
-  );
+  const family = GENERIC_FAMILIES.find((f) => f.id === familyId) ?? GENERIC_FAMILIES[0];
+  const type = family.types.find((t) => t.id === typeIds[family.id]) ?? family.types[0];
+  const { values, params } = resolveValues(type, rawValues);
+  const range = rangeParam(params);
+  // Only values valid for this type: pin counts are shared between series,
+  // and 40 pins on a header isn't a Dupont housing.
+  const chosen = range ? sortRange((ranges[range.id] ?? []).filter((v) => range.parse(v) !== null)) : [];
+  const chips = range ? sortRange([...range.options, ...chosen]) : [];
+  const previews = range
+    ? chosen.map((value) => type.generate({ ...values, [range.id]: value }))
+    : [type.generate(values)];
   const single = previews.length === 1 ? previews[0] : null;
 
-  function toggleLength(length: number) {
-    if (!allowRange) {
-      setLengths([length]);
-      return;
-    }
-    setLengths((prev) => (prev.includes(length) ? prev.filter((l) => l !== length) : [...prev, length]));
+  function toggle(value: string) {
+    if (!range) return;
+    setRanges((prev) => {
+      const current = prev[range.id] ?? [];
+      const next = !allowRange
+        ? [value]
+        : current.includes(value)
+          ? current.filter((v) => v !== value)
+          : [...current, value];
+      return { ...prev, [range.id]: next };
+    });
   }
 
-  function addOtherLength() {
-    const length = parseLength(otherLength);
-    if (length === null) {
-      toast.error("Enter a length in mm, e.g. 14 or 5.7");
+  function addOther() {
+    if (!range) return;
+    const value = range.parse(other);
+    if (value === null) {
+      toast.error(`Not a valid ${range.label.toLowerCase()}`);
       return;
     }
-    if (!lengths.includes(length)) toggleLength(length);
-    setOtherLength("");
+    if (!chosen.includes(value)) toggle(value);
+    setOther("");
   }
 
   function fill() {
@@ -104,11 +112,11 @@ export function FastenerDialog({
 
   function createRange() {
     startTransition(async () => {
-      const result = await createFasteners({
+      const result = await createGenericParts({
+        family: family.id,
         type: type.id,
-        size: currentSize,
-        material: material.id,
-        lengths: chosen,
+        values,
+        range: chosen,
       });
       if (result.error) {
         toast.error(result.error);
@@ -125,23 +133,32 @@ export function FastenerDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm">
-          <Ruler className="size-4" />
-          From standard
+          <Shapes className="size-4" />
+          Generic part
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>Fastener from standard</DialogTitle>
+          <DialogTitle>Generic part</DialogTitle>
           <DialogDescription>
-            Fills in the name, ISO/DIN designation and dimensions.
-            {allowRange && " Pick several lengths to create one part for each."}
+            {family.description}
+            {allowRange && range && " Pick several values to create one part each."}
           </DialogDescription>
         </DialogHeader>
+        <Tabs value={family.id} onValueChange={setFamilyId}>
+          <TabsList className="w-full">
+            {GENERIC_FAMILIES.map((f) => (
+              <TabsTrigger key={f.id} value={f.id}>
+                {f.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2 sm:col-span-2" role="radiogroup" aria-label="Type">
             <Label>Type</Label>
             <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-6">
-              {FASTENER_TYPES.map((t) => {
+              {family.types.map((t) => {
                 const on = t.id === type.id;
                 return (
                   <button
@@ -149,92 +166,80 @@ export function FastenerDialog({
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    title={[t.title, t.standard && `${t.standard}${t.alias ? ` / ${t.alias}` : ""}`]
-                      .filter(Boolean)
-                      .join("\n")}
-                    onClick={() => setTypeId(t.id)}
+                    title={t.title}
+                    onClick={() => setTypeIds((prev) => ({ ...prev, [family.id]: t.id }))}
                     className={cn(
                       "grid justify-items-center gap-1 rounded-md border p-1.5 text-center hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       on && "border-primary bg-accent/50 ring-1 ring-primary",
                     )}
                   >
-                    <IconTile icons={iconsFor(t.icons.slice(0, 1))} className="size-10" />
+                    <IconTile icons={iconsFor([t.icon])} className="size-10" />
                     <span className="line-clamp-2 text-[0.7rem] leading-tight">{t.label}</span>
-                    <span className="truncate text-[0.6rem] leading-none text-muted-foreground">
-                      {t.standard || "no standard"}
-                    </span>
+                    <span className="truncate text-[0.6rem] leading-none text-muted-foreground">{t.detail}</span>
                   </button>
                 );
               })}
             </div>
           </div>
-          <div className="grid gap-2">
-            <Label>Size</Label>
-            <Select value={currentSize} onValueChange={setSize}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {sizes.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="grid gap-2">
-            <Label>Material</Label>
-            <Select value={material.id} onValueChange={setMaterialId}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {materials.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {withLength && (
+          {params.map((param) =>
+            param.kind === "select" ? (
+              <div key={param.id} className="grid gap-2">
+                <Label>{param.label}</Label>
+                <Select
+                  value={values[param.id]}
+                  onValueChange={(value) => setRawValues((prev) => ({ ...prev, [param.id]: value }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {param.options.map((o) => (
+                      <SelectItem key={o.value} value={o.value}>
+                        {o.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null,
+          )}
+          {range && (
             <div className="grid gap-2 sm:col-span-2">
-              <Label>Length (mm)</Label>
+              <Label>{range.label}</Label>
               <div className="flex flex-wrap gap-1.5">
-                {chips.map((length) => {
-                  const on = chosen.includes(length);
+                {chips.map((value) => {
+                  const on = chosen.includes(value);
                   return (
                     <Button
-                      key={length}
+                      key={value}
                       type="button"
                       size="sm"
                       className="min-w-10 tabular-nums"
                       variant={on ? "default" : "outline"}
                       aria-pressed={on}
-                      onClick={() => toggleLength(length)}
+                      onClick={() => toggle(value)}
                     >
-                      {length}
+                      {value}
                     </Button>
                   );
                 })}
               </div>
               <div className="flex gap-2">
                 <Input
-                  value={otherLength}
-                  onChange={(e) => setOtherLength(e.target.value)}
+                  value={other}
+                  onChange={(e) => setOther(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      addOtherLength();
+                      addOther();
                     }
                   }}
                   inputMode="decimal"
-                  placeholder="Other length"
-                  aria-label="Other length in mm"
+                  placeholder={range.placeholder}
+                  aria-label={`Other ${range.label.toLowerCase()}`}
                   className="w-36"
                 />
-                <Button type="button" variant="outline" onClick={addOtherLength}>
+                <Button type="button" variant="outline" onClick={addOther}>
                   <Plus className="size-4" />
                   Add
                 </Button>
@@ -244,19 +249,18 @@ export function FastenerDialog({
         </div>
 
         <div className="rounded-md border bg-muted/40 p-3 text-sm">
-          {single && "error" in single ? (
-            <p className="text-muted-foreground">{withLength && chosen.length === 0 ? "Pick a length" : single.error}</p>
+          {range && chosen.length === 0 ? (
+            <p className="text-muted-foreground">Pick a value under {range.label}</p>
+          ) : single && "error" in single ? (
+            <p className="text-muted-foreground">{single.error}</p>
           ) : single ? (
             <div className="grid grid-cols-[auto_1fr] items-center gap-3">
-              <IconTile icons={iconsFor([...type.icons].reverse())} className="h-12 px-2" />
+              <IconTile icons={iconsFor(single.preview)} className="h-12 px-2" />
               <div className="grid gap-1">
                 <p className="font-medium">{single.name}</p>
                 {single.mpn && <p className="font-mono text-xs text-muted-foreground">{single.mpn}</p>}
                 <p className="text-xs text-muted-foreground">
-                  {single.attributes
-                    .filter((a) => a.key !== "Standard" && a.key !== "Material")
-                    .map((a) => `${a.key} ${a.value}`)
-                    .join(" · ")}
+                  {single.attributes.map((a) => `${a.key} ${a.value}`).join(" · ")}
                 </p>
               </div>
             </div>

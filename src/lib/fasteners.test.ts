@@ -1,23 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import icons from "@/lib/label-icons.json";
 import {
   commonLengths,
   FASTENER_TYPES,
   fastenerSizes,
   fastenerType,
   generateFastener,
-  generateFasteners,
   materialsFor,
   parseLength,
-  type GeneratedFastener,
 } from "@/lib/fasteners";
+import type { GeneratedPart } from "@/lib/generic-parts";
 
-function ok(result: GeneratedFastener | { error: string }): GeneratedFastener {
+function ok(result: GeneratedPart | { error: string }): GeneratedPart {
   if ("error" in result) assert.fail(result.error);
   return result;
 }
-const attr = (part: GeneratedFastener, key: string) => part.attributes.find((a) => a.key === key)?.value;
+const attr = (part: GeneratedPart, key: string) => part.attributes.find((a) => a.key === key)?.value;
 
 test("a socket head cap screw gets its name, ISO designation as MPN, and head specs", () => {
   const part = ok(generateFastener({ type: "iso4762", size: "M3", length: 8, material: "a2" }));
@@ -81,16 +79,6 @@ test("every type × size × offered material generates", () => {
   }
 });
 
-test("a range of lengths becomes one part per distinct length, shortest first", () => {
-  const parts = generateFasteners({ type: "iso4762", size: "M3", material: "a2", lengths: [10, 6, 10] });
-  assert.ok(Array.isArray(parts));
-  assert.deepEqual(parts.map((p) => attr(p, "Length")), ["6 mm", "10 mm"]);
-  // Nuts ignore lengths and make a single part.
-  const nuts = generateFasteners({ type: "din985", size: "M4", material: "a2", lengths: [] });
-  assert.ok(Array.isArray(nuts) && nuts.length === 1);
-  assert.ok("error" in generateFasteners({ type: "iso4762", size: "M3", material: "a2", lengths: [] }));
-});
-
 test("common lengths scale with the thread size", () => {
   const type = fastenerType("iso4762")!;
   const m3 = commonLengths(type, "M3");
@@ -107,12 +95,3 @@ test("parseLength accepts mm, decimal commas and a unit, and rejects nonsense", 
   for (const bad of ["", "0", "-3", "abc", "1000", "3.141"]) assert.equal(parseLength(bad), null, bad);
 });
 
-test("every fastener type pictures itself with icons that exist in the label catalogue", () => {
-  // The catalogue is regenerated from icon packs; a renamed id would leave the
-  // generator showing a blank tile.
-  const known = new Set(icons.map((i) => i.id));
-  for (const type of FASTENER_TYPES) {
-    assert.ok(type.icons.length > 0, type.id);
-    for (const id of type.icons) assert.ok(known.has(id), `${type.id}: ${id}`);
-  }
-});
