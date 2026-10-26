@@ -4,12 +4,13 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, ImageIcon, Plus, Sparkles, X } from "lucide-react";
-import type { PartAttribute } from "@/lib/part-attributes";
+import type { GeneratedFastener } from "@/lib/fasteners";
+import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
 import { isNextRedirectError } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { LocationPicker } from "@/components/location-picker";
 import { attachShopFiles, createPart, lookupOrderUrl, updatePart } from "./actions";
+import { FastenerDialog } from "./fastener-dialog";
 import { fillAttributes, shopFiles, suggestCategory, type ShopFile } from "./product-fill";
 import { uploadPartFiles } from "./upload";
 
@@ -92,6 +94,35 @@ export function PartForm({
     setAttributes((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
   }
 
+  // Selects the existing category matching a shop/standard category path, or
+  // proposes creating its leaf. False if the path suggests nothing.
+  function applyCategory(path: string[]) {
+    const suggestion = suggestCategory(path, categories);
+    if (!suggestion) return false;
+    if ("id" in suggestion) setCategoryId(suggestion.id);
+    else {
+      setCategoryId("new");
+      setNewCategory(suggestion.name);
+    }
+    return true;
+  }
+
+  // A fastener picked from a standard: unlike "Fill from link" it replaces
+  // the text fields and its own attributes, since the user just chose it —
+  // picking again (another length) must update the form, not keep the old.
+  function fillFromStandard(fastener: GeneratedFastener) {
+    const form = formRef.current;
+    if (!form) return;
+    for (const name of ["name", "description", "mpn", "unit"] as const) {
+      const input = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (input) input.value = fastener[name];
+    }
+    if (categoryId === "none" || categoryId === "new") applyCategory(fastener.category);
+    setAttributes((prev) =>
+      mergeAttributes(prev.filter((a) => a.key.trim() || a.value.trim()), fastener.attributes),
+    );
+  }
+
   // Reads the shop page behind the order link and fills empty fields from its
   // product data; anything already typed is kept.
   function fillFromLink() {
@@ -115,15 +146,7 @@ export function PartForm({
           filled.push(name === "mpn" ? "MPN" : name);
         }
       }
-      if (categoryId === "none" && product.category.length) {
-        const suggestion = suggestCategory(product.category, categories);
-        if (suggestion && "id" in suggestion) setCategoryId(suggestion.id);
-        else if (suggestion) {
-          setCategoryId("new");
-          setNewCategory(suggestion.name);
-        }
-        if (suggestion) filled.push("category");
-      }
+      if (categoryId === "none" && applyCategory(product.category)) filled.push("category");
       setShopCategory(product.category);
       const added = product.attributes.filter(
         (shop) => !attributes.some((a) => a.key.trim().toLowerCase() === shop.key.toLowerCase()),
@@ -216,6 +239,9 @@ export function PartForm({
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Part</CardTitle>
+          <CardAction>
+            <FastenerDialog onFill={fillFromStandard} allowRange={!part} />
+          </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2 sm:col-span-2">

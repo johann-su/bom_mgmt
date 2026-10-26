@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { files, parts } from "@/db/schema";
+import { categories, files, parts } from "@/db/schema";
 import { getSession } from "@/lib/auth";
+import { generateFasteners } from "@/lib/fasteners";
 import { MAX_UPLOAD_BYTES, remoteFilename } from "@/lib/file-kind";
 import * as mutations from "@/lib/part-mutations";
 import { storePartFiles } from "@/lib/part-files";
@@ -14,6 +15,7 @@ import { fetchProductInfo, fetchRemoteFile } from "@/lib/product-fetch";
 import type { ProductInfo } from "@/lib/product-page";
 import { blobStore } from "@/lib/storage";
 import { logger } from "@/lib/logger";
+import { suggestCategory } from "./product-fill";
 
 type Result = { error?: string };
 
@@ -43,6 +45,63 @@ async function resolveNewCategory<T extends Record<string, unknown>>(
   const ids = await db.transaction((tx) => ensureCategories(tx, [name]));
   revalidatePath("/settings/categories");
   return { values: { ...raw, categoryId: ids.get(name.toLowerCase()) ?? null } };
+}
+
+/**
+ * Creates one generic fastener part per length (src/lib/fasteners.ts), filed
+ * under an existing matching category or a new one. The parts are generated
+ * here from the spec, not taken from the client. Parts that already exist
+ * (same name or MPN) are skipped, so re-running a range only adds what's new.
+ */
+export async function createFasteners(input: {
+  type: string;
+  size: string;
+  material: string;
+  lengths: number[];
+}): Promise<Result & { created?: number; skipped?: number }> {
+  const session = await getSession();
+  if (!session) return { error: "You must be signed in" };
+  const generated = generateFasteners({
+    type: String(input.type),
+    size: String(input.size),
+    material: String(input.material),
+    lengths: Array.isArray(input.lengths) ? input.lengths.map(Number) : [],
+  });
+  if ("error" in generated) return generated;
+
+  const lower = (values: string[]) => values.filter(Boolean).map((v) => v.toLowerCase());
+  const names = lower(generated.map((p) => p.name));
+  const mpns = lower(generated.map((p) => p.mpn));
+  const existing = await db
+    .select({ name: parts.name, mpn: parts.mpn })
+    .from(parts)
+    .where(
+      or(
+        inArray(sql`lower(${parts.name})`, names),
+        mpns.length ? inArray(sql`lower(${parts.mpn})`, mpns) : undefined,
+      ),
+    );
+  const taken = new Set(lower(existing.flatMap((p) => [p.name, p.mpn])));
+  const fresh = generated.filter((p) => !taken.has(p.name.toLowerCase()) && !taken.has(p.mpn.toLowerCase()));
+  if (fresh.length === 0) return { created: 0, skipped: generated.length };
+
+  const cats = await db.select({ id: categories.id, name: categories.name }).from(categories);
+  const suggestion = suggestCategory(fresh[0].category, cats);
+  let categoryId: string | null = null;
+  if (suggestion && "id" in suggestion) categoryId = suggestion.id;
+  else if (suggestion) {
+    const ids = await db.transaction((tx) => ensureCategories(tx, [suggestion.name]));
+    categoryId = ids.get(suggestion.name.toLowerCase()) ?? null;
+    revalidatePath("/settings/categories");
+  }
+
+  let created = 0;
+  for (const part of fresh) {
+    const result = await mutations.createPart(session.user.id, { ...part, categoryId });
+    if (result.error) return { error: result.error, created };
+    created++;
+  }
+  return { created, skipped: generated.length - created };
 }
 
 /**
