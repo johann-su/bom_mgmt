@@ -55,3 +55,23 @@ export function oidcDiscoveryUrl(issuer: string): string {
     ? issuer
     : `${issuer.replace(/\/+$/, "")}/.well-known/openid-configuration`;
 }
+
+/**
+ * How much of the inventory the MCP server (/api/mcp) exposes:
+ *
+ * - `off`   — the default. No MCP server, no OAuth provider endpoints.
+ * - `read`  — `ENABLE_MCP=true`: assistants can search and read parts,
+ *   locations, stock and BOMs, but change nothing.
+ * - `write` — `ENABLE_MCP=true` *and* `ENABLE_MCP_WRITE=true`: also create,
+ *   edit, import and delete parts and book stock.
+ *
+ * Write access is a second opt-in because it is the bigger decision: an
+ * approved assistant then changes the inventory on a user's behalf. On its own
+ * `ENABLE_MCP_WRITE` does nothing — it can't switch the server on.
+ */
+export type McpAccess = "off" | "read" | "write";
+
+export function mcpAccess(env: Record<string, string | undefined> = process.env): McpAccess {
+  if (!envFlag(env.ENABLE_MCP)) return "off";
+  return envFlag(env.ENABLE_MCP_WRITE) ? "write" : "read";
+}

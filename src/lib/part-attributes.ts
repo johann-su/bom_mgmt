@@ -26,3 +26,12 @@ export function normalizeAttributes(raw: unknown): PartAttribute[] {
   }
   return [...byKey.values()].slice(0, MAX_ATTRIBUTES);
 }
+
+/**
+ * Merges imported attributes into a part's existing ones: a key already there
+ * (case-insensitively) takes the new value in place, new keys append, and
+ * keys the import doesn't mention are kept.
+ */
+export function mergeAttributes(existing: PartAttribute[], incoming: PartAttribute[]): PartAttribute[] {
+  return normalizeAttributes([...existing, ...incoming]);
+}

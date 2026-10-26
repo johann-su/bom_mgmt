@@ -2,9 +2,10 @@
 // or distributor order export (DigiKey, Mouser, LCSC, InvenTree, …), guesses
 // which column holds which field from its header, and plans per row whether
 // it creates a part or updates an existing one, plus optional stock to book.
-// The server action (src/app/parts/import/actions.ts) applies the plan.
+// src/lib/part-import.ts applies the plan (for the page and the MCP tool).
 
 import { parseCsv } from "@/lib/csv";
+import { normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import { parseOrderUrl } from "@/lib/part-input";
 
 export const PART_CSV_FIELDS = [
@@ -85,14 +86,34 @@ export const PART_CSV_TEMPLATE: { field: PartCsvField; header: string; help: str
   { field: "quantity", header: "Quantity", help: "Whole number of pieces at that location. Needs a Location.", examples: [10, 200] },
 ];
 
-/** Column index per field; unmapped fields are absent. */
-export type PartCsvMapping = Partial<Record<PartCsvField, number>>;
+/** An attribute column for the template and format guide; any number may follow. */
+export const PART_CSV_ATTRIBUTE_EXAMPLE = {
+  header: "Attr: Package",
+  help: "Any column can become an attribute, named after its header. Columns starting with \"Attr:\" are picked automatically.",
+  examples: ["DIP-8", ""] as [string, string],
+};
+
+/**
+ * Column index per field; unmapped fields are absent. `attributes` lists the
+ * columns imported as attributes, keyed by their header.
+ */
+export type PartCsvMapping = Partial<Record<PartCsvField, number>> & { attributes?: number[] };
 
 const normalizeHeader = (h: string) => h.trim().toLowerCase().replace(/\s+/g, " ");
 
+const ATTRIBUTE_HEADER = /^attr(?:ibute)?\s*[:.]\s*(\S.*)$/i;
+
+/** The attribute key a column yields: its header, minus an "Attr:" prefix. */
+export function attributeKey(header: string): string {
+  const trimmed = header.trim();
+  return ATTRIBUTE_HEADER.exec(trimmed)?.[1].trim() ?? trimmed;
+}
+
 /**
  * Guesses the mapping from a header row. Each field takes the first alias any
- * header matches, and a column is used for one field only.
+ * header matches, and a column is used for one field only. Only "Attr: …"
+ * columns become attributes on their own — order exports carry plenty of
+ * columns (prices, line numbers) that shouldn't end up on a part.
  */
 export function guessPartMapping(headers: string[]): PartCsvMapping {
   const normalized = headers.map(normalizeHeader);
@@ -108,6 +129,8 @@ export function guessPartMapping(headers: string[]): PartCsvMapping {
       }
     }
   }
+  const attributes = headers.flatMap((h, i) => (!used.has(i) && ATTRIBUTE_HEADER.test(h.trim()) ? [i] : []));
+  if (attributes.length) mapping.attributes = attributes;
   return mapping;
 }
 
@@ -157,6 +180,16 @@ export function sanitizeMapping(raw: unknown, columnCount: number): PartCsvMappi
       used.add(index);
     }
   }
+  const attributes = (raw as { attributes?: unknown }).attributes;
+  if (Array.isArray(attributes)) {
+    const valid = attributes.filter((index): index is number => {
+      if (typeof index !== "number" || !Number.isInteger(index) || index < 0 || index >= columnCount) return false;
+      if (used.has(index)) return false;
+      used.add(index);
+      return true;
+    });
+    if (valid.length) mapping.attributes = valid;
+  }
   return mapping;
 }
 
@@ -173,6 +206,7 @@ export type PartCsvValues = {
   minStock?: number;
   orderUrl?: string;
   notes?: string;
+  attributes?: PartAttribute[]; // merged into the part's existing ones
 };
 
 export type PlannedPartRow = {
@@ -254,6 +288,13 @@ export function planPartImport(
       if (!/^\d+$/.test(minStock)) return fail(`Min. stock "${minStock}" is not a whole number`);
       values.minStock = Number(minStock);
     }
+    const attributes = normalizeAttributes(
+      (mapping.attributes ?? []).map((index) => ({
+        key: attributeKey(table.headers[index] ?? ""),
+        value: (cells[index] ?? "").trim(),
+      })),
+    ).filter((a) => a.value !== "");
+    if (attributes.length) values.attributes = attributes;
     const orderUrl = cell("orderUrl");
     if (orderUrl) {
       const url = parseOrderUrl(orderUrl);

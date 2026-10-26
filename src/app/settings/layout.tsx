@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { mcpEnabled, requireSession } from "@/lib/auth";
 import { ensureInitialAdmin } from "@/lib/admin";
 import { isAdmin } from "@/lib/roles";
 import { SettingsNav } from "./settings-nav";
@@ -14,7 +14,7 @@ export default async function SettingsLayout({ children }: { children: React.Rea
       <h1 className="text-2xl font-semibold mb-6">Settings</h1>
       <div className="grid gap-8 sm:grid-cols-[12rem_1fr]">
         <aside className="sm:sticky sm:top-20 sm:self-start">
-          <SettingsNav showUsers={isAdmin(session.user.role)} />
+          <SettingsNav showUsers={isAdmin(session.user.role)} showMcp={mcpEnabled} />
         </aside>
         <div className="min-w-0">{children}</div>
       </div>

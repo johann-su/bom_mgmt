@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { PART_CSV_TEMPLATE } from "@/lib/part-csv";
+import { PART_CSV_ATTRIBUTE_EXAMPLE, PART_CSV_TEMPLATE } from "@/lib/part-csv";
 import { buildXlsx } from "@/lib/xlsx";
 
 export const runtime = "nodejs";
@@ -11,11 +11,13 @@ export async function GET() {
   if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const xlsx = buildXlsx(
     [
-      PART_CSV_TEMPLATE.map((c) => c.header),
-      PART_CSV_TEMPLATE.map((c) => c.examples[0]),
-      PART_CSV_TEMPLATE.map((c) => c.examples[1]),
+      [...PART_CSV_TEMPLATE.map((c) => c.header), PART_CSV_ATTRIBUTE_EXAMPLE.header],
+      ...[0, 1].map((i) => [...PART_CSV_TEMPLATE.map((c) => c.examples[i]), PART_CSV_ATTRIBUTE_EXAMPLE.examples[i]]),
     ],
-    { sheetName: "Parts", widths: PART_CSV_TEMPLATE.map((c) => (c.field === "description" ? 32 : 16)) },
+    {
+      sheetName: "Parts",
+      widths: [...PART_CSV_TEMPLATE.map((c) => (c.field === "description" ? 32 : 16)), 16],
+    },
   );
   return new NextResponse(Buffer.from(xlsx), {
     headers: {

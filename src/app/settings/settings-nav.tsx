@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Layers, StickyNote, Tags, UserCog, Users } from "lucide-react";
+import { Bot, Layers, StickyNote, Tags, UserCog, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
@@ -16,12 +16,15 @@ const items = [
 // the nav.
 const usersItem = { href: "/settings/users", label: "Users", icon: Users };
 
-export function SettingsNav({ showUsers }: { showUsers: boolean }) {
+// Hidden unless the instance enables MCP (ENABLE_MCP); the page 404s too.
+const mcpItem = { href: "/settings/mcp", label: "AI access", icon: Bot };
+
+export function SettingsNav({ showUsers, showMcp }: { showUsers: boolean; showMcp: boolean }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex gap-1 overflow-x-auto sm:flex-col sm:gap-0.5">
-      {[...items, ...(showUsers ? [usersItem] : [])].map((item) => {
+      {[...items, ...(showMcp ? [mcpItem] : []), ...(showUsers ? [usersItem] : [])].map((item) => {
         // Nested pages (a template's designer) keep their section highlighted.
         const active =
           pathname === item.href || (item.href !== "/settings" && pathname.startsWith(`${item.href}/`));

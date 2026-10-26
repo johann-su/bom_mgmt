@@ -38,7 +38,9 @@ export const config = {
   // Every path except API routes (they guard themselves), Next.js internals
   // and static files. The PWA manifest is among them: browsers fetch it
   // without cookies, so gating it would break "Add to Home Screen".
+  // `.well-known` holds the OAuth discovery documents for the MCP server,
+  // which a client must read before it has any credential.
   matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|\\.well-known|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

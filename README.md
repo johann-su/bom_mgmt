@@ -51,6 +51,12 @@ sidebar shell).
   …), GitHub and Google, each enabled by env vars. The first account (or
   `INITIAL_ADMIN_EMAIL`) is admin and manages users; the inventory itself is
   shared by all users.
+- **MCP server** (opt-in) — connect Claude, ChatGPT & co. at `/api/mcp` to
+  search parts and check BOM shortfalls (`ENABLE_MCP=true`, read-only), and
+  optionally to create, edit, import and delete parts and book stock (add
+  `ENABLE_MCP_WRITE=true`). OAuth sign-in and approval in the app;
+  connections are listed and revocable under Settings → AI access. See
+  [docs/mcp.md](docs/mcp.md).
 - **Files** on S3-compatible storage (MinIO in compose) or the local
   filesystem (`STORAGE_BACKEND=filesystem`).
 

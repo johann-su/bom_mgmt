@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   configuredOAuthProviders,
   envFlag,
+  mcpAccess,
   oidcDiscoveryUrl,
   passwordLoginEnabled,
 } from "@/lib/auth-config";
@@ -60,4 +61,14 @@ test("OIDC_ISSUER may be the issuer or the full discovery URL", () => {
   const discovery = "https://idp.example.com/.well-known/openid-configuration";
   assert.equal(oidcDiscoveryUrl("https://idp.example.com/"), discovery);
   assert.equal(oidcDiscoveryUrl(discovery), discovery);
+});
+
+// MCP is two opt-ins: the server itself, then write access on top. Writes
+// must never come on by themselves — ENABLE_MCP_WRITE alone keeps it off.
+test("mcpAccess is off by default, read-only with ENABLE_MCP, writable only with both", () => {
+  assert.equal(mcpAccess({}), "off");
+  assert.equal(mcpAccess({ ENABLE_MCP_WRITE: "true" }), "off");
+  assert.equal(mcpAccess({ ENABLE_MCP: "true" }), "read");
+  assert.equal(mcpAccess({ ENABLE_MCP: "true", ENABLE_MCP_WRITE: "false" }), "read");
+  assert.equal(mcpAccess({ ENABLE_MCP: "1", ENABLE_MCP_WRITE: "TRUE" }), "write");
 });

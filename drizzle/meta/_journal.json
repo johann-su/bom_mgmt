@@ -50,6 +50,13 @@
       "when": 1792944333626,
       "tag": "0006_location_label_slots",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793015263941,
+      "tag": "0007_mcp_oauth",
+      "breakpoints": true
     }
   ]
 }

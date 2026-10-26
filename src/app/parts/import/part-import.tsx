@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
+  attributeKey,
   guessPartMapping,
   PART_CSV_FIELD_LABELS,
   PART_CSV_FIELDS,
@@ -94,9 +95,20 @@ export function PartImport() {
         const index = Number(value);
         // A column feeds one field: taking it here frees it elsewhere.
         for (const f of PART_CSV_FIELDS) if (next[f] === index) delete next[f];
+        next.attributes = next.attributes?.filter((i) => i !== index);
         next[field] = index;
       }
       return next;
+    });
+  }
+
+  function toggleAttribute(index: number) {
+    setMapping((prev) => {
+      const current = prev.attributes ?? [];
+      return {
+        ...prev,
+        attributes: current.includes(index) ? current.filter((i) => i !== index) : [...current, index],
+      };
     });
   }
 
@@ -136,7 +148,38 @@ export function PartImport() {
     );
   }
 
+  // Columns not feeding a field can each become an attribute named after
+  // their header. A render function, not a component: it reads the mapping.
+  function renderAttributeColumns() {
+    const mapped = new Set(PART_CSV_FIELDS.map((f) => mapping[f]));
+    const candidates = headers.flatMap((h, i) => (!mapped.has(i) && attributeKey(h) ? [i] : []));
+    if (candidates.length === 0) return null;
+    return (
+      <div className="grid gap-2 sm:col-span-3">
+        <Label>Import as attributes</Label>
+        <div className="flex flex-wrap gap-2">
+          {candidates.map((i) => {
+            const on = mapping.attributes?.includes(i) ?? false;
+            return (
+              <Button
+                key={i}
+                type="button"
+                size="sm"
+                variant={on ? "default" : "outline"}
+                aria-pressed={on}
+                onClick={() => toggleAttribute(i)}
+              >
+                {attributeKey(headers[i])}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   const s = preview?.summary;
+  const hasAttributes = preview?.preview?.some((row) => row.attributes.length > 0) ?? false;
   return (
     <div className="grid gap-6">
       <Card>
@@ -195,6 +238,7 @@ export function PartImport() {
                 </Select>
               </div>
             )}
+            {renderAttributeColumns()}
           </CardContent>
         </Card>
       )}
@@ -222,6 +266,7 @@ export function PartImport() {
                     <TableHead />
                     <TableHead>Location</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
+                    {hasAttributes && <TableHead>Attributes</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -237,6 +282,11 @@ export function PartImport() {
                       </TableCell>
                       <TableCell className="font-mono text-xs">{row.location}</TableCell>
                       <TableCell className="text-right">{row.quantity ?? ""}</TableCell>
+                      {hasAttributes && (
+                        <TableCell className="whitespace-normal text-xs text-muted-foreground">
+                          {row.attributes.map((a) => `${a.key}: ${a.value}`).join(", ")}
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

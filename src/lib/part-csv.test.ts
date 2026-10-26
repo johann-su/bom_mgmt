@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   guessPartMapping,
+  PART_CSV_ATTRIBUTE_EXAMPLE,
   PART_CSV_FIELDS,
   PART_CSV_TEMPLATE,
   planPartImport,
@@ -121,15 +122,36 @@ test("min stock and order link are validated like the part form does", () => {
 test("a client-sent mapping is clamped to real, distinct columns", () => {
   assert.deepEqual(sanitizeMapping({ name: 0, mpn: 0, notes: 7, unit: -1, category: "1" }, 3), { name: 0 });
   assert.deepEqual(sanitizeMapping(null, 3), {});
+  // Attribute columns, too, must exist and not double as a field's column.
+  assert.deepEqual(sanitizeMapping({ name: 0, attributes: [0, 1, 1, 9, "2"] }, 3), { name: 0, attributes: [1] });
+});
+
+test("only 'Attr: …' columns become attributes by guess; order-export extras stay out", () => {
+  const mapping = guessPartMapping(["MPN", "Unit Price", "Attr: Thread", "attribute.Length", "Package"]);
+  assert.deepEqual(mapping.attributes, [2, 3]);
+});
+
+test("attribute columns: keyed by header without the 'Attr:' prefix, empty cells skipped", () => {
+  const table = readPartCsv("MPN,Attr: Thread,Package\nM3-INS,M3,\nNE555P,,DIP-8\n");
+  const result = planPartImport(table, { mpn: 0, attributes: [1, 2] }, { parts: [], locations: LOCATIONS });
+  assert.deepEqual(result.rows[0].values.attributes, [{ key: "Thread", value: "M3" }]);
+  assert.deepEqual(result.rows[1].values.attributes, [{ key: "Package", value: "DIP-8" }]);
+});
+
+test("a row with no attribute values leaves the part's attributes alone", () => {
+  const table = readPartCsv("MPN,Attr: Thread\nM3-INS,\n");
+  const result = planPartImport(table, guessPartMapping(table.headers), { parts: [], locations: LOCATIONS });
+  assert.equal(result.rows[0].values.attributes, undefined);
 });
 
 test("the downloadable template's headers map onto every field", () => {
   // The template and the format guide both come from PART_CSV_TEMPLATE; if a
   // header there stops matching an alias, a filled-in template won't import.
-  const headers = PART_CSV_TEMPLATE.map((c) => c.header);
+  const headers = [...PART_CSV_TEMPLATE.map((c) => c.header), PART_CSV_ATTRIBUTE_EXAMPLE.header];
   const mapping = guessPartMapping(headers);
   for (const [i, c] of PART_CSV_TEMPLATE.entries()) assert.equal(mapping[c.field], i, c.header);
   assert.equal(PART_CSV_TEMPLATE.length, PART_CSV_FIELDS.length);
+  assert.deepEqual(mapping.attributes, [PART_CSV_TEMPLATE.length]);
 });
 
 // The server action takes rows the browser parsed (CSV or .xlsx), so it must
