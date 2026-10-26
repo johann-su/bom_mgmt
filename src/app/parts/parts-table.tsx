@@ -41,7 +41,7 @@ export function PartsTable({ rows }: { rows: PartsTableRow[] }) {
               <TableRow key={row.id}>
                 <TableCell>
                   <Link href={`/parts/${row.id}`} className="flex items-center gap-3 hover:underline">
-                    <PartThumb fileId={row.thumb} className="size-10" />
+                    <PartThumb fileId={row.thumb} icon={row.icon} className="size-10" />
                     <div className="min-w-0">
                       <div className="truncate font-medium">{row.name}</div>
                       <div className="truncate text-xs text-muted-foreground">

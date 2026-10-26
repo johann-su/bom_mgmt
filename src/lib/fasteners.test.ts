@@ -27,6 +27,8 @@ test("a socket head cap screw gets its name, ISO designation as MPN, and head sp
   assert.match(part.description, /ISO 4762 \(DIN 912\)/);
   assert.match(part.description, /stainless steel A2 \(A2-70\)/);
   assert.deepEqual(part.category, ["Fasteners", "Screws"]);
+  // The side view, not the drive, is the thumbnail.
+  assert.equal(part.icon, "screw/heads-sideways/machine/socket-cap");
   assert.equal(part.unit, "pcs");
   assert.equal(attr(part, "Thread"), "M3");
   assert.equal(attr(part, "Pitch"), "0.5 mm");

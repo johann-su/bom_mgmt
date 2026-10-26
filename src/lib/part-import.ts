@@ -10,6 +10,7 @@ import { loadLocationOptions } from "@/lib/locations";
 import { htmlToMarkdown } from "@/lib/markdown";
 import { applyDelta, recordMovement, stockAt } from "@/lib/movements";
 import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
+import { mergeOrderUrls } from "@/lib/part-input";
 import { revalidateInventory } from "@/lib/part-mutations";
 import {
   partTableFromRows,
@@ -112,7 +113,7 @@ export async function runPartImport(
     const createdIds: string[] = [];
 
     for (const [i, row] of plan.rows.entries()) {
-      const { category, attributes, ...values } = row.values;
+      const { category, attributes, orderUrls, ...values } = row.values;
       const set: Partial<typeof parts.$inferInsert> = {
         ...values,
         ...(category ? { categoryId: categoryIds.get(category.toLowerCase()) ?? null } : {}),
@@ -125,6 +126,7 @@ export async function runPartImport(
             ...set,
             name: values.name ?? values.mpn ?? "",
             attributes: attributes ?? [],
+            orderUrls: orderUrls ?? [],
             createdBy: userId,
           })
           .returning({ id: parts.id });
@@ -132,13 +134,15 @@ export async function runPartImport(
         createdIds[i] = partId;
       } else {
         partId = "existing" in row.target ? row.target.existing : createdIds[row.target.created];
-        if (attributes) {
+        if (attributes || orderUrls) {
           // Read inside the transaction: an earlier row may have merged some already.
           const current = await tx.query.parts.findFirst({
             where: eq(parts.id, partId),
-            columns: { attributes: true },
+            columns: { attributes: true, orderUrls: true },
           });
-          set.attributes = mergeAttributes(current?.attributes ?? [], attributes);
+          if (attributes) set.attributes = mergeAttributes(current?.attributes ?? [], attributes);
+          // Another shop's export adds that supplier; known links keep their place.
+          if (orderUrls) set.orderUrls = mergeOrderUrls(current?.orderUrls ?? [], orderUrls);
         }
         if (Object.keys(set).length) {
           await tx.update(parts).set({ ...set, updatedAt: new Date() }).where(eq(parts.id, partId));

@@ -77,18 +77,21 @@ export type StoredPart = {
   mpn: string;
   unit: string;
   minStock: number | null;
-  orderUrl: string;
+  orderUrls: string[];
+  icon: string;
   attributes: PartAttribute[];
   notes: string;
 };
 
-const TEXT_FIELDS = ["name", "description", "manufacturer", "mpn", "unit", "orderUrl", "notes"] as const;
+const TEXT_FIELDS = ["name", "description", "manufacturer", "mpn", "unit", "notes"] as const;
 
 export type PartPatch = Partial<Record<(typeof TEXT_FIELDS)[number], string>> & {
   /** Resolved by the caller from a category name; null clears it. */
   categoryId?: string | null;
   /** null clears the threshold. */
   minStock?: number | null;
+  /** Replaces the part's supplier links (preferred first); [] clears them. */
+  orderUrls?: string[];
   /** Merged by key: existing keys take the new value, new keys append. */
   attributes?: PartAttribute[];
   /** Keys to drop, case-insensitively. */
@@ -111,6 +114,7 @@ export function partFormValues(existing: StoredPart, patch: PartPatch): Record<s
   }
   if (patch.categoryId !== undefined) values.categoryId = patch.categoryId ?? "";
   if (patch.minStock !== undefined) values.minStock = patch.minStock === null ? "" : String(patch.minStock);
+  if (patch.orderUrls !== undefined) values.orderUrls = patch.orderUrls;
 
   let attributes = existing.attributes;
   if (patch.attributes?.length) attributes = mergeAttributes(attributes, patch.attributes);
@@ -161,8 +165,16 @@ export function importRowsToTable(rows: Record<string, unknown>[]): {
 
   // Keep the planner's field order so the table reads like the template.
   fields.sort((a, b) => PART_CSV_FIELDS.indexOf(a) - PART_CSV_FIELDS.indexOf(b));
-  const cell = (value: unknown) =>
-    value === undefined || value === null ? "" : typeof value === "object" ? JSON.stringify(value) : String(value);
+  // A list (orderUrls) becomes one cell of space-separated values, as the
+  // planner reads a spreadsheet's link column.
+  const cell = (value: unknown): string =>
+    value === undefined || value === null
+      ? ""
+      : Array.isArray(value)
+        ? value.map(cell).join(" ")
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
 
   const headers = [...fields, ...attributeKeys.map((key) => `Attr: ${key}`)];
   const mapping: PartCsvMapping = Object.fromEntries(fields.map((field, i) => [field, i]));

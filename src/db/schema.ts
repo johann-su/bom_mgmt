@@ -372,9 +372,14 @@ export const parts = pgTable(
     unit: text("unit").notNull().default("pcs"),
     // Low-stock threshold across all locations; null = not tracked.
     minStock: integer("min_stock"),
-    // Where to reorder the part (a shop/supplier page); "" = none. Shown as
-    // an "Order" link, prominently once stock runs low.
-    orderUrl: text("order_url").notNull().default(""),
+    // Product pages of the suppliers the part can be reordered from, the
+    // preferred one first; empty = none. Shown as "Order" links, prominently
+    // once stock runs low.
+    orderUrls: text("order_urls").array().notNull().default(sql`'{}'::text[]`),
+    // A label-icon catalogue id ("screw/hardware/nuts/hex-nut",
+    // src/lib/label-icons.json) shown as the thumbnail while the part has no
+    // image; "" = none.
+    icon: text("icon").notNull().default(""),
     attributes: jsonb("attributes").$type<PartAttribute[]>().notNull().default([]),
     notes: text("notes").notNull().default(""),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),

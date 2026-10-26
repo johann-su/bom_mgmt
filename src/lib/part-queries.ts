@@ -52,7 +52,8 @@ export async function listParts(filters: {
       manufacturer: parts.manufacturer,
       unit: parts.unit,
       minStock: parts.minStock,
-      orderUrl: parts.orderUrl,
+      orderUrls: parts.orderUrls,
+      icon: parts.icon,
       category: categories.name,
       total: totalStock,
     })

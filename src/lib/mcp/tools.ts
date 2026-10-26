@@ -128,7 +128,7 @@ async function partDetail(id: string, { movements = 10 } = {}) {
     description: part.description,
     notes: part.notes,
     attributes: part.attributes,
-    orderUrl: part.orderUrl || null,
+    orderUrls: part.orderUrls,
     totalStock: total,
     minStock: part.minStock,
     lowStock: isLowStock(total, part.minStock),
@@ -196,7 +196,11 @@ const PART_FIELD_PROPERTIES = {
     minimum: 0,
     description: "Low-stock threshold across all locations; null = not tracked.",
   },
-  orderUrl: { type: "string", description: "http(s) link to the shop/supplier page to reorder from." },
+  orderUrls: {
+    type: "array",
+    items: { type: "string" },
+    description: "http(s) product pages of the shops/suppliers to reorder from, preferred first. On update this replaces the whole list ([] clears it).",
+  },
   notes: { type: "string", description: "Markdown." },
 };
 
@@ -214,8 +218,8 @@ function readMinStock(args: Record<string, unknown>): number | null | undefined 
 
 /** The text fields of a create/update call, as sent. Absent fields stay absent. */
 function readTextFields(args: Record<string, unknown>) {
-  const out: Partial<Record<"name" | "mpn" | "manufacturer" | "description" | "unit" | "orderUrl" | "notes", string>> = {};
-  for (const field of ["name", "mpn", "manufacturer", "description", "unit", "orderUrl", "notes"] as const) {
+  const out: Partial<Record<"name" | "mpn" | "manufacturer" | "description" | "unit" | "notes", string>> = {};
+  for (const field of ["name", "mpn", "manufacturer", "description", "unit", "notes"] as const) {
     const value = args[field];
     if (value === undefined) continue;
     if (value !== null && typeof value !== "string") throw new InvalidParamsError(`"${field}" must be a string`);
@@ -491,6 +495,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             ...readTextFields(args),
             categoryId: category ? await categoryIdFor(category) : "",
             minStock: minStock == null ? "" : String(minStock),
+            orderUrls: optionalStringArray(args, "orderUrls"),
             attributes: readAttributes(args.attributes),
             initialLocationId: location ? resolveStockPlace(await loadLocationOptions(), location) : null,
             initialQuantity: quantity === undefined || quantity === null ? "" : String(quantity),
@@ -522,6 +527,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
         const patch: PartPatch = {
           ...readTextFields(args),
           minStock: readMinStock(args),
+          ...(args.orderUrls !== undefined ? { orderUrls: optionalStringArray(args, "orderUrls") } : {}),
           attributes: readAttributes(args.attributes),
           removeAttributes: optionalStringArray(args, "removeAttributes"),
           ...(category !== undefined ? { categoryId: await categoryIdFor(category) } : {}),

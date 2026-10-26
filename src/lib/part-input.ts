@@ -1,3 +1,4 @@
+import { isIconId } from "@/lib/label-icons";
 import { normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
 
 export type PartInput = {
@@ -8,7 +9,8 @@ export type PartInput = {
   mpn: string;
   unit: string;
   minStock: number | null;
-  orderUrl: string;
+  orderUrls: string[];
+  icon: string;
   attributes: PartAttribute[];
   notes: string;
 };
@@ -30,8 +32,12 @@ export function parsePartInput(raw: Record<string, unknown>): PartInput | { erro
     minStock = Number(rawMin);
   }
 
-  const orderUrl = parseOrderUrl(text("orderUrl"));
-  if (orderUrl === null) return { error: "Order link must be an http(s) URL" };
+  const orderUrls = parseOrderUrls(raw.orderUrls);
+  if ("error" in orderUrls) return orderUrls;
+
+  // Not a user-typed field (the form's picker sets it), so a malformed id is
+  // dropped rather than reported.
+  const icon = text("icon", 200);
 
   const categoryId = text("categoryId");
   return {
@@ -43,7 +49,8 @@ export function parsePartInput(raw: Record<string, unknown>): PartInput | { erro
     // Blank unit means the default; units are short labels, not prose.
     unit: text("unit", 20) || "pcs",
     minStock,
-    orderUrl,
+    orderUrls: orderUrls.urls,
+    icon: isIconId(icon) ? icon : "",
     attributes: normalizeAttributes(raw.attributes),
     notes: text("notes", 10000),
   };
@@ -67,4 +74,55 @@ export function parseOrderUrl(raw: string): string | null {
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
   if (!url.hostname.includes(".") && url.hostname !== "localhost") return null;
   return url.href.slice(0, 2000);
+}
+
+/** Most supplier links a part keeps. */
+export const MAX_ORDER_URLS = 20;
+
+/**
+ * Normalizes a part's supplier links: a list (form, MCP) or one string with
+ * links separated by whitespace or ";" (a spreadsheet cell). Blanks are
+ * skipped, duplicates dropped keeping the first (order = preference), and any
+ * link parseOrderUrl rejects fails the whole list.
+ */
+export function parseOrderUrls(raw: unknown): { urls: string[] } | { error: string } {
+  const items =
+    raw === undefined || raw === null
+      ? []
+      : Array.isArray(raw)
+        ? raw.map((item) => String(item ?? ""))
+        : splitOrderUrls(String(raw));
+  const urls: string[] = [];
+  for (const item of items) {
+    const url = parseOrderUrl(item);
+    if (url === null) return { error: `Order link "${item.trim().slice(0, 100)}" is not an http(s) URL` };
+    if (url && !urls.includes(url)) urls.push(url);
+  }
+  if (urls.length > MAX_ORDER_URLS) return { error: `At most ${MAX_ORDER_URLS} order links per part` };
+  return { urls };
+}
+
+/**
+ * Adds links to a part's existing ones: known links keep their place (the
+ * preferred supplier stays first), new ones append, up to MAX_ORDER_URLS.
+ */
+export function mergeOrderUrls(existing: string[], added: string[]): string[] {
+  return [...existing, ...added.filter((url) => !existing.includes(url))].slice(0, MAX_ORDER_URLS);
+}
+
+// URLs carry no whitespace and hardly ever a ";", so those separate links.
+function splitOrderUrls(raw: string): string[] {
+  return raw.split(/[\s;]+/).filter(Boolean);
+}
+
+/**
+ * The supplier a link points to, for labelling it: the host without "www."
+ * ("lcsc.com"), or the link itself if it doesn't parse.
+ */
+export function supplierName(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }

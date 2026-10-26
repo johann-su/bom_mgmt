@@ -135,7 +135,13 @@ test("a location actually coded 'unsorted' wins over the unsorted pile", () => {
 test("min stock and order link are validated like the part form does", () => {
   const result = plan("Name,Min stock,URL\nA,two,\nB,,javascript:alert(1)\nC,3,lcsc.com/x\n");
   assert.equal(result.errors.length, 2);
-  assert.deepEqual(result.rows[0].values, { name: "C", minStock: 3, orderUrl: "https://lcsc.com/x" });
+  assert.deepEqual(result.rows[0].values, { name: "C", minStock: 3, orderUrls: ["https://lcsc.com/x"] });
+});
+
+// One row can list every supplier of the part in its link cell.
+test("an order link cell may hold several links", () => {
+  const result = plan('Name,Order links\nC,"lcsc.com/x\nhttps://www.digikey.com/y"\n');
+  assert.deepEqual(result.rows[0].values.orderUrls, ["https://lcsc.com/x", "https://www.digikey.com/y"]);
 });
 
 test("a client-sent mapping is clamped to real, distinct columns", () => {

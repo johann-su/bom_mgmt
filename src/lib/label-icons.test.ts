@@ -1,6 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ICON_PACKS, groupIcons, iconPack, searchIcons, type LabelIcon } from "@/lib/label-icons";
+import {
+  ICON_PACKS,
+  groupIcons,
+  iconPack,
+  iconSvgDocument,
+  isIconId,
+  searchIcons,
+  type LabelIcon,
+} from "@/lib/label-icons";
 import catalogue from "@/lib/label-icons.json";
 import { sanitizeSvgMarkup } from "@/lib/svg-sanitize";
 
@@ -52,4 +60,17 @@ test("searchIcons needs every word to match somewhere: name, spec, category or n
   assert.ok(names("sot-23").includes("SOT-23"));
   assert.deepEqual(names("torx nonsense"), []);
   assert.equal(searchIcons(icons, "  ").length, icons.length);
+});
+
+// Parts store an icon id and the thumbnail route serves it by path, so every
+// catalogue id must pass the id check.
+test("every catalogue id is a valid stored icon id", () => {
+  for (const icon of icons) assert.ok(isIconId(icon.id), icon.id);
+});
+
+test("an icon becomes a standalone SVG document for an <img>", () => {
+  const svg = iconSvgDocument({ viewBox: [0, 0, 48, 24], markup: '<circle cx="24" cy="12" r="5"/>' });
+  // An <img> only renders SVG with the namespace declared.
+  assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg" viewBox="0 0 48 24">/);
+  assert.match(svg, /<circle cx="24" cy="12" r="5"\/><\/svg>$/);
 });

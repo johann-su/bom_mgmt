@@ -97,6 +97,7 @@ export default async function LocationPage({ params }: Params) {
       partId: parts.id,
       name: parts.name,
       mpn: parts.mpn,
+      icon: parts.icon,
       unit: parts.unit,
       quantity: stock.quantity,
     })
@@ -251,7 +252,7 @@ export default async function LocationPage({ params }: Params) {
                     <TableRow key={c.partId}>
                       <TableCell>
                         <Link href={`/parts/${c.partId}`} className="flex items-center gap-2 hover:underline">
-                          <PartThumb fileId={thumbs.get(c.partId) ?? null} className="size-8" />
+                          <PartThumb fileId={thumbs.get(c.partId) ?? null} icon={c.icon} className="size-8" />
                           <div className="min-w-0">
                             <div className="truncate font-medium">{c.name}</div>
                             {c.mpn && <div className="truncate text-xs text-muted-foreground">{c.mpn}</div>}

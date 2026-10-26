@@ -64,7 +64,8 @@ const STORED: StoredPart = {
   mpn: "NE555P",
   unit: "pcs",
   minStock: 5,
-  orderUrl: "https://www.lcsc.com/product-detail/C46749.html",
+  orderUrls: ["https://www.lcsc.com/product-detail/C46749.html"],
+  icon: "component/packages/dip-8",
   attributes: [
     { key: "Package", value: "DIP-8" },
     { key: "Supply", value: "4.5–16 V" },
@@ -83,6 +84,8 @@ test("partFormValues changes only the patched fields", () => {
   assert.equal(parsed.description, STORED.description);
   assert.equal(parsed.categoryId, "cat-ics");
   assert.deepEqual(parsed.attributes, STORED.attributes);
+  // update_part doesn't know about the thumbnail icon; it must survive.
+  assert.equal(parsed.icon, STORED.icon);
 });
 
 // null is how the model says "clear it" — distinct from leaving it out.
@@ -132,6 +135,26 @@ test("importRowsToTable builds a table the import planner reads like a CSV", () 
     { key: "Thread", value: "M3" },
     { key: "Length", value: "8 mm" },
   ]);
+});
+
+// import_parts rows pass supplier links as a list; they must reach the
+// planner as separate links, not as one JSON-encoded string.
+test("importRowsToTable passes a list of order links through", () => {
+  const { rows, mapping } = importRowsToTable([
+    { name: "NE555", orderUrls: ["https://lcsc.com/x", "https://www.digikey.com/y"] },
+  ]);
+  const plan = planPartImport(partTableFromRows(rows), mapping, { parts: [], locations: LOCATIONS });
+  assert.deepEqual(plan.rows[0].values.orderUrls, ["https://lcsc.com/x", "https://www.digikey.com/y"]);
+});
+
+// update_part replaces the link list only when it is passed.
+test("partFormValues keeps order links unless the patch sets them", () => {
+  const kept = parsePartInput(partFormValues(STORED, { notes: "x" }));
+  assert.ok(!("error" in kept));
+  assert.deepEqual(kept.orderUrls, STORED.orderUrls);
+  const cleared = parsePartInput(partFormValues(STORED, { orderUrls: [] }));
+  assert.ok(!("error" in cleared));
+  assert.deepEqual(cleared.orderUrls, []);
 });
 
 // A typo like "qty" would otherwise drop every quantity without a word.

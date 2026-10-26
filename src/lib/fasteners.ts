@@ -327,6 +327,7 @@ export type GeneratedFastener = {
   mpn: string; // the standard designation, so BOM imports can match on it
   unit: "pcs";
   category: string[]; // broadest first, for suggestCategory
+  icon: string; // label-icon catalogue id, the part's thumbnail until it has a photo
   attributes: PartAttribute[];
 };
 
@@ -407,6 +408,7 @@ export function generateFastener(spec: FastenerSpec): GeneratedFastener | { erro
     mpn: type.standard ? designation : "",
     unit: "pcs",
     category: ["Fasteners", type.category],
+    icon: type.icons[0],
     attributes: attributesFor(type, spec.size, dims, length, material, grade),
   };
 }

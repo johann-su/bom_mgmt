@@ -1,0 +1,1 @@
+ALTER TABLE "parts" ADD COLUMN "icon" text DEFAULT '' NOT NULL;

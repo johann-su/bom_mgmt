@@ -35,6 +35,26 @@ export async function loadIcons(): Promise<LabelIcon[]> {
   return (await import("@/lib/label-icons.json")).default as LabelIcon[];
 }
 
+/**
+ * Whether `id` is shaped like a catalogue id ("screw/drives/hex") — safe to
+ * store and to put in a URL path. It may still name no icon.
+ */
+export function isIconId(id: string): boolean {
+  return id.length <= 200 && /^[a-z0-9-]+(\/[a-z0-9-]+)+$/.test(id);
+}
+
+/** URL of an icon as a standalone SVG image (src/app/api/icons/[...id]). */
+export const iconUrl = (id: string) => `/api/icons/${id}`;
+
+/**
+ * A catalogue icon as a standalone SVG document, for an <img> (a part's
+ * thumbnail). The markup draws in currentColor, which is black in an image —
+ * as on a label.
+ */
+export function iconSvgDocument(icon: Pick<LabelIcon, "viewBox" | "markup">): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${icon.viewBox.join(" ")}">${icon.markup}</svg>`;
+}
+
 /** Icons grouped by category, in catalogue order. */
 export function groupIcons(icons: LabelIcon[]): { category: string; icons: LabelIcon[] }[] {
   const groups = new Map<string, LabelIcon[]>();

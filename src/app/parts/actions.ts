@@ -125,7 +125,7 @@ export async function lookupOrderUrl(input: {
 /**
  * Finds the part a scanned bag label is for: by MPN, else by the
  * distributor's part number appearing as a path/query segment of a part's
- * order link (an LCSC "C2040" in …/product-detail/C2040.html).
+ * order links (an LCSC "C2040" in …/product-detail/C2040.html).
  */
 export async function findPartByLabel(input: {
   mpn: string;
@@ -145,7 +145,7 @@ export async function findPartByLabel(input: {
   // Only plain part numbers go into the regex below.
   if (/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(spn)) {
     const part = await db.query.parts.findFirst({
-      where: sql`${parts.orderUrl} ~* ${`[/=]${spn}([./?&#]|$)`}`,
+      where: sql`exists (select 1 from unnest(${parts.orderUrls}) as u(url) where u.url ~* ${`[/=]${spn}([./?&#]|$)`})`,
       columns,
     });
     if (part) return { part };

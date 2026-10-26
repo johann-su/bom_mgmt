@@ -36,7 +36,8 @@ export type PartFormValues = {
   mpn: string;
   unit: string;
   minStock: number | null;
-  orderUrl: string;
+  orderUrls: string[];
+  icon: string;
   attributes: PartAttribute[];
   notes: string;
 };
@@ -49,7 +50,8 @@ const EMPTY: PartFormValues = {
   mpn: "",
   unit: "pcs",
   minStock: null,
-  orderUrl: "",
+  orderUrls: [],
+  icon: "",
   attributes: [],
   notes: "",
 };
@@ -81,14 +83,24 @@ export function PartForm({
     initial.attributes.length ? initial.attributes : [{ key: "", value: "" }],
   );
   // "new" = create `newCategory` on save (typed, or the shop's suggestion).
+  // Supplier product pages, preferred first; one empty row to type into.
+  const [orderUrls, setOrderUrls] = useState<string[]>(
+    initial.orderUrls.length ? initial.orderUrls : [""],
+  );
   const [categoryId, setCategoryId] = useState(initial.categoryId ?? "none");
   const [newCategory, setNewCategory] = useState("");
   const [shopCategory, setShopCategory] = useState<string[]>([]);
   // The shop's datasheet/photo, attached after saving unless unticked.
   const [offeredFiles, setOfferedFiles] = useState<(ShopFile & { checked: boolean })[]>([]);
   const [locationId, setLocationId] = useState<string | null>(null);
+  // Catalogue icon shown as the thumbnail while the part has no image. Only
+  // "From standard" sets it (a generic fastener has no photo worth fetching);
+  // editing a part keeps whatever it has.
+  const [icon, setIcon] = useState(initial.icon);
   const [pending, startTransition] = useTransition();
   const [lookingUp, startLookup] = useTransition();
+  // Which link "Fill from link" is reading, for its button label.
+  const [lookupIndex, setLookupIndex] = useState<number | null>(null);
 
   function updateAttribute(index: number, patch: Partial<PartAttribute>) {
     setAttributes((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
@@ -118,20 +130,22 @@ export function PartForm({
       if (input) input.value = fastener[name];
     }
     if (categoryId === "none" || categoryId === "new") applyCategory(fastener.category);
+    setIcon(fastener.icon);
     setAttributes((prev) =>
       mergeAttributes(prev.filter((a) => a.key.trim() || a.value.trim()), fastener.attributes),
     );
   }
 
-  // Reads the shop page behind the order link and fills empty fields from its
+  // Reads the shop page behind one order link and fills empty fields from its
   // product data; anything already typed is kept.
-  function fillFromLink() {
+  function fillFromLink(index: number, url: string) {
     const form = formRef.current;
     if (!form) return;
     const field = (name: string) =>
       form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+    setLookupIndex(index);
     startLookup(async () => {
-      const result = await lookupOrderUrl({ url: field("orderUrl")?.value ?? "" });
+      const result = await lookupOrderUrl({ url });
       if (result.error || !result.product) {
         toast.error(result.error ?? "No product data found");
         return;
@@ -168,7 +182,7 @@ export function PartForm({
   useEffect(() => {
     if (!autoLookup || autoLooked.current) return;
     autoLooked.current = true;
-    fillFromLink();
+    fillFromLink(0, orderUrls[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
@@ -192,7 +206,8 @@ export function PartForm({
       mpn: form.get("mpn"),
       unit: form.get("unit"),
       minStock: form.get("minStock"),
-      orderUrl: form.get("orderUrl"),
+      orderUrls,
+      icon,
       notes: form.get("notes"),
       attributes,
     };
@@ -311,27 +326,67 @@ export function PartForm({
             <Input id="mpn" name="mpn" defaultValue={initial.mpn} className="font-mono" />
           </div>
           <div className="grid gap-2 sm:col-span-2">
-            <Label htmlFor="orderUrl">Order link</Label>
-            <div className="flex gap-2">
-              <Input
-                id="orderUrl"
-                name="orderUrl"
-                type="text"
-                inputMode="url"
-                defaultValue={initial.orderUrl}
-                placeholder="https://… (optional) — where to reorder when it runs low"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={fillFromLink}
-                disabled={lookingUp}
-                title="Fill empty fields from the shop's product page"
-              >
-                <Sparkles className="size-4" />
-                {lookingUp ? "Reading…" : "Fill from link"}
-              </Button>
-            </div>
+            <Label htmlFor="orderUrl-0">Order links</Label>
+            {orderUrls.map((url, index) => (
+              <div key={index} className="flex gap-2">
+                <Input
+                  id={`orderUrl-${index}`}
+                  type="text"
+                  inputMode="url"
+                  value={url}
+                  onChange={(e) =>
+                    setOrderUrls((prev) => prev.map((u, i) => (i === index ? e.target.value : u)))
+                  }
+                  placeholder={
+                    index === 0
+                      ? "https://… (optional) — where to reorder when it runs low"
+                      : "https://… another supplier's product page"
+                  }
+                  aria-label={`Order link ${index + 1}`}
+                  // A row added with + takes the cursor (the first row is there on load).
+                  autoFocus={index > 0 && url === ""}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fillFromLink(index, url)}
+                  disabled={lookingUp || !url.trim()}
+                  title="Fill empty fields from the shop's product page"
+                >
+                  <Sparkles className="size-4" />
+                  {lookingUp && lookupIndex === index ? "Reading…" : "Fill from link"}
+                </Button>
+                {orderUrls.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove order link"
+                    title="Remove this link"
+                    onClick={() => setOrderUrls((prev) => prev.filter((_, i) => i !== index))}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                )}
+                {index === orderUrls.length - 1 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Add another order link"
+                    title="Add another supplier's link"
+                    onClick={() => setOrderUrls((prev) => [...prev, ""])}
+                  >
+                    <Plus className="size-4" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            {orderUrls.filter((u) => u.trim()).length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                The first link is the preferred supplier behind the Order button.
+              </p>
+            )}
             {offeredFiles.length > 0 && (
               <div className="grid gap-1 text-sm">
                 <span className="text-muted-foreground">Attach from the shop when saving:</span>
@@ -456,7 +511,7 @@ export function PartForm({
             name="notes"
             defaultValue={initial.notes}
             rows={4}
-            placeholder="Suppliers, order links, usage tips…"
+            placeholder="Usage tips, alternatives, …"
             aria-label="Notes"
           />
         </CardContent>

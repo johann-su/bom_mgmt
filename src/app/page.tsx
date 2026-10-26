@@ -82,9 +82,10 @@ export default async function DashboardPage() {
                         {formatQuantity(p.total, p.unit)}
                         <span className="text-muted-foreground"> / {p.minStock}</span>
                       </span>
-                      {p.orderUrl && (
+                      {p.orderUrls[0] && (
+                        // The preferred supplier; the part page lists the others.
                         <a
-                          href={p.orderUrl}
+                          href={p.orderUrls[0]}
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`Order ${p.name}`}

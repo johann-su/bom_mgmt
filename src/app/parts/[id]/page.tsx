@@ -9,6 +9,7 @@ import { requireSession } from "@/lib/auth";
 import { loadLocationOptions } from "@/lib/locations";
 import { recentMovements } from "@/lib/movement-queries";
 import { formatQuantity } from "@/lib/format";
+import { supplierName } from "@/lib/part-input";
 import { isLowStock, toPickerValue } from "@/lib/stock";
 import { isUuid } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +94,7 @@ export default async function PartPage({ params }: Params) {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <PartThumb fileId={cover?.id ?? null} className="size-20 rounded-xl" />
+          <PartThumb fileId={cover?.id ?? null} icon={part.icon} className="size-20 rounded-xl" />
           <div>
             <div className="mb-1 flex flex-wrap gap-1">
               {part.category && <Badge variant="secondary">{part.category.name}</Badge>}
@@ -110,10 +111,16 @@ export default async function PartPage({ params }: Params) {
           </div>
         </div>
         <div className="flex gap-2">
-          {part.orderUrl && (
-            // Out of stock or below minimum → the primary action is reordering.
+          {part.orderUrls[0] && (
+            // Out of stock or below minimum → the primary action is reordering,
+            // from the preferred (first) supplier; the others are listed below.
             <Button variant={low || total === 0 ? "default" : "outline"} asChild>
-              <a href={part.orderUrl} target="_blank" rel="noopener noreferrer">
+              <a
+                href={part.orderUrls[0]}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Order from ${supplierName(part.orderUrls[0])}`}
+              >
                 <ShoppingCart className="size-4" />
                 Order
               </a>
@@ -279,6 +286,35 @@ export default async function PartPage({ params }: Params) {
                     ))}
                   </dl>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {part.orderUrls.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Suppliers</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="grid gap-1.5 text-sm">
+                  {part.orderUrls.map((url, index) => (
+                    <li key={url} className="flex items-center gap-2">
+                      <ShoppingCart className="size-4 shrink-0 text-muted-foreground" />
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={url}
+                        className="flex-1 truncate hover:underline"
+                      >
+                        {supplierName(url)}
+                      </a>
+                      {index === 0 && part.orderUrls.length > 1 && (
+                        <Badge variant="secondary">Preferred</Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </CardContent>
             </Card>
           )}

@@ -6,7 +6,7 @@
 
 import { parseCsv } from "@/lib/csv";
 import { normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
-import { parseOrderUrl } from "@/lib/part-input";
+import { parseOrderUrls } from "@/lib/part-input";
 
 export const PART_CSV_FIELDS = [
   "name",
@@ -16,7 +16,7 @@ export const PART_CSV_FIELDS = [
   "category",
   "unit",
   "minStock",
-  "orderUrl",
+  "orderUrls",
   "notes",
   "location",
   "quantity",
@@ -31,7 +31,7 @@ export const PART_CSV_FIELD_LABELS: Record<PartCsvField, string> = {
   category: "Category",
   unit: "Unit",
   minStock: "Min. stock",
-  orderUrl: "Order link",
+  orderUrls: "Order links",
   notes: "Notes",
   location: "Location (code)",
   quantity: "Quantity",
@@ -61,7 +61,7 @@ const HEADER_ALIASES: Record<PartCsvField, string[]> = {
   category: ["category", "categories", "group"],
   unit: ["unit", "units", "uom"],
   minStock: ["min stock", "min. stock", "minimum stock", "min qty", "reorder point", "reorder level"],
-  orderUrl: ["order link", "order url", "product url", "product link", "url", "link"],
+  orderUrls: ["order links", "order link", "order urls", "order url", "product url", "product link", "url", "link"],
   notes: ["notes", "note", "remarks", "comment", "comments"],
   location: ["location", "storage location", "storage", "bin", "loc"],
   quantity: ["quantity", "qty", "qty.", "order qty.", "order qty", "in stock", "stock", "on hand", "count"],
@@ -80,7 +80,7 @@ export const PART_CSV_TEMPLATE: { field: PartCsvField; header: string; help: str
   { field: "category", header: "Category", help: "Category name; created if it doesn't exist yet.", examples: ["ICs", "Fasteners"] },
   { field: "unit", header: "Unit", help: "Unit of count, e.g. pcs or m.", examples: ["pcs", "pcs"] },
   { field: "minStock", header: "Min stock", help: "Whole number; warns when stock falls below it.", examples: [5, 50] },
-  { field: "orderUrl", header: "Order link", help: "http(s) URL of the product page.", examples: ["https://www.digikey.com/", ""] },
+  { field: "orderUrls", header: "Order links", help: "http(s) URL of the product page; several (one per supplier) separated by spaces, line breaks or \";\". Added to a part's existing links.", examples: ["https://www.digikey.com/", ""] },
   { field: "notes", header: "Notes", help: "Text.", examples: ["", ""] },
   { field: "location", header: "Location", help: "Code of an existing location (e.g. A/1) or its full path. Empty (or \"unsorted\") books the quantity as unsorted.", examples: ["A/1", "B"] },
   { field: "quantity", header: "Quantity", help: "Whole number of pieces at that location, or unsorted when there is none.", examples: [10, 200] },
@@ -204,7 +204,7 @@ export type PartCsvValues = {
   category?: string; // by name; created when missing
   unit?: string;
   minStock?: number;
-  orderUrl?: string;
+  orderUrls?: string[]; // added to the part's existing ones
   notes?: string;
   attributes?: PartAttribute[]; // merged into the part's existing ones
 };
@@ -297,12 +297,9 @@ export function planPartImport(
       })),
     ).filter((a) => a.value !== "");
     if (attributes.length) values.attributes = attributes;
-    const orderUrl = cell("orderUrl");
-    if (orderUrl) {
-      const url = parseOrderUrl(orderUrl);
-      if (!url) return fail(`Order link "${orderUrl}" is not an http(s) URL`);
-      values.orderUrl = url;
-    }
+    const orderUrls = parseOrderUrls(cell("orderUrls"));
+    if ("error" in orderUrls) return fail(orderUrls.error);
+    if (orderUrls.urls.length) values.orderUrls = orderUrls.urls;
 
     let stock: PlannedPartRow["stock"] = null;
     const location = cell("location");

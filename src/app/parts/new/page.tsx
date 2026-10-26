@@ -27,7 +27,7 @@ export default async function NewPartPage({ searchParams }: { searchParams: Sear
     name: name ?? mpn ?? "",
     mpn: mpn ?? "",
     manufacturer: manufacturer ?? "",
-    orderUrl: orderUrl ?? "",
+    orderUrls: orderUrl ? [orderUrl] : [],
     initialQuantity: qty && /^\d+$/.test(qty) ? Number(qty) : undefined,
   };
   const [cats, locations] = await Promise.all([
@@ -39,7 +39,7 @@ export default async function NewPartPage({ searchParams }: { searchParams: Sear
       <h1 className="text-3xl font-bold tracking-tight mb-6">New part</h1>
       <PartForm
         prefill={prefill}
-        autoLookup={lookup === "1" && !!prefill.orderUrl}
+        autoLookup={lookup === "1" && prefill.orderUrls.length > 0}
         categories={cats}
         locations={locations}
       />
