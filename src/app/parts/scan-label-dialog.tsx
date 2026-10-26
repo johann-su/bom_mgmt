@@ -107,6 +107,8 @@ export function ScanLabelDialog({ locations }: { locations: LocationOption[] }) 
         manufacturer: label.manufacturer,
         orderUrl: label.orderUrl,
         ...(label.quantity !== null ? { qty: String(label.quantity) } : {}),
+        // Fill the rest (category, specs, datasheet) from the shop page.
+        ...(label.orderUrl ? { lookup: "1" } : {}),
       })}`
     : "";
 

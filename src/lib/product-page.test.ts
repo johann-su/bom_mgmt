@@ -32,6 +32,9 @@ test("schema.org Product JSON-LD supplies name, brand, MPN, GTIN, price and imag
     gtin: "0123456789012",
     image: "https://shop.example.com/img/ne555.jpg", // relative URLs resolved against the page
     price: { amount: "0.42", currency: "EUR" },
+    category: [],
+    attributes: [],
+    datasheet: "",
   });
 });
 
@@ -143,4 +146,75 @@ test("Shopify JSON: body_html replaces the glued JSON-LD text; the ?variant= pic
 test("Shopify JSON that isn't a product leaves the page's data alone", () => {
   const fromPage = extractProductInfo(jsonLd({ "@type": "Product", name: "x" }), PAGE);
   assert.deepEqual(mergeShopifyProduct(fromPage, { errors: "Not found" }, PAGE), fromPage);
+});
+
+// Trimmed from LCSC's C701341 page: the breadcrumb and Product.category
+// disagree, specs are additionalProperty, the datasheet is subjectOf.
+const LCSC_URL = "https://www.lcsc.com/product-detail/C701341.html";
+const lcscPage = (extra: Record<string, unknown> = {}, breadcrumb = true) =>
+  `<html><head>
+  <script type="application/ld+json">${JSON.stringify({
+    "@context": "http://schema.org",
+    "@type": "Product",
+    name: "ESPRESSIF ESP32-WROOM-32E-N4",
+    mpn: "ESP32-WROOM-32E-N4",
+    category: "IoT/Communication Modules/RF Transceiver Modules and Modems",
+    additionalProperty: [
+      { "@type": "PropertyValue", name: "Package", value: "SMD,25.5x18mm" },
+      { "@type": "PropertyValue", name: "Receive  Current", value: "112mA" },
+      { "@type": "PropertyValue", name: "Output Power", value: 20, unitText: "dBm" },
+      { "@type": "PropertyValue", name: "Shielding", value: "-" },
+    ],
+    subjectOf: { "@type": "DigitalDocument", name: "Datasheet", url: "https://datasheet.lcsc.com/datasheet/pdf/d5de.pdf?productCode=C701341" },
+    ...extra,
+  })}</script>
+  ${
+    breadcrumb
+      ? `<script type="application/ld+json">${JSON.stringify({
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            { "@type": "ListItem", position: 2, name: "Products", item: "https://www.lcsc.com/products" },
+            { "@type": "ListItem", position: 1, name: "Home", item: "https://www.lcsc.com/" },
+            { "@type": "ListItem", position: 3, name: "RF and Wireless", item: "https://www.lcsc.com/category/35.html" },
+            { "@type": "ListItem", position: 4, name: "RF Transceiver Modules and Modems", item: "https://www.lcsc.com/category/560.html" },
+            { "@type": "ListItem", position: 5, name: "ESPRESSIF ESP32-WROOM-32E-N4", item: LCSC_URL },
+          ],
+        })}</script>`
+      : ""
+  }
+  </head></html>`;
+
+test("the category path comes from the breadcrumb, minus Home/Products and the product itself", () => {
+  assert.deepEqual(extractProductInfo(lcscPage(), LCSC_URL)?.category, [
+    "RF and Wireless",
+    "RF Transceiver Modules and Modems",
+  ]);
+});
+
+test("without a breadcrumb, Product.category is split into a path; a taxonomy id is not a name", () => {
+  assert.deepEqual(extractProductInfo(lcscPage({}, false), LCSC_URL)?.category, [
+    "IoT",
+    "Communication Modules",
+    "RF Transceiver Modules and Modems",
+  ]);
+  assert.deepEqual(extractProductInfo(lcscPage({ category: "5592" }, false), LCSC_URL)?.category, []);
+});
+
+test("additionalProperty specs become attributes: units appended, '-' placeholders dropped", () => {
+  assert.deepEqual(extractProductInfo(lcscPage(), LCSC_URL)?.attributes, [
+    { key: "Package", value: "SMD,25.5x18mm" },
+    { key: "Receive Current", value: "112mA" },
+    { key: "Output Power", value: "20 dBm" },
+  ]);
+});
+
+test("the datasheet comes from subjectOf, else from a 'datasheet' PDF link on the page", () => {
+  assert.equal(
+    extractProductInfo(lcscPage(), LCSC_URL)?.datasheet,
+    "https://datasheet.lcsc.com/datasheet/pdf/d5de.pdf?productCode=C701341",
+  );
+  const linked =
+    lcscPage({ subjectOf: undefined }) +
+    `<a href="/terms.pdf">Terms</a><a href="/docs/ne555.pdf"><span>Data sheet</span></a>`;
+  assert.equal(extractProductInfo(linked, LCSC_URL)?.datasheet, "https://www.lcsc.com/docs/ne555.pdf");
 });

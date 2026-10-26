@@ -53,6 +53,35 @@ export function isInline(filename: string): boolean {
   return ext in IMAGE_TYPES || ext === "pdf" || ext === "txt";
 }
 
+// Remote files (a shop's datasheet/photo) come with a content type, not a
+// filename we'd trust; only these become files, under the extension we pick.
+const REMOTE_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif",
+};
+
+/**
+ * A filename for a file fetched from a shop: `base` (e.g. "RP2040 datasheet")
+ * made filesystem-safe, plus the extension for the response's content type.
+ * A generic "application/octet-stream" falls back to the URL's extension if
+ * that's an allowed PDF/image. Null when the file is none of those.
+ */
+export function remoteFilename(base: string, contentType: string, url: string): string | null {
+  const type = contentType.split(";")[0].trim().toLowerCase();
+  let ext = REMOTE_TYPES[type];
+  if (!ext && (type === "application/octet-stream" || type === "binary/octet-stream" || !type)) {
+    const fromUrl = extension(new URL(url).pathname);
+    if (Object.values(REMOTE_TYPES).includes(fromUrl) || fromUrl === "jpeg") ext = fromUrl;
+  }
+  if (!ext) return null;
+  const safe = base.replace(/[\\/:*?"<>|\x00-\x1f]+/g, "-").replace(/\s+/g, " ").trim().slice(0, 100);
+  return `${safe || "file"}.${ext}`;
+}
+
 export const ACCEPTED_UPLOADS = [
   ...Object.keys(IMAGE_TYPES),
   ...Object.keys(DOCUMENT_TYPES),

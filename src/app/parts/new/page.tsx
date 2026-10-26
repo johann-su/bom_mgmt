@@ -15,13 +15,14 @@ type SearchParams = Promise<{
   manufacturer?: string;
   orderUrl?: string;
   qty?: string;
+  lookup?: string;
 }>;
 
 // Query parameters prefill the form — the scan-label dialog links here for a
-// part that doesn't exist yet.
+// part that doesn't exist yet, with lookup=1 to read the shop page right away.
 export default async function NewPartPage({ searchParams }: { searchParams: SearchParams }) {
   await requireSession();
-  const { name, mpn, manufacturer, orderUrl, qty } = await searchParams;
+  const { name, mpn, manufacturer, orderUrl, qty, lookup } = await searchParams;
   const prefill = {
     name: name ?? mpn ?? "",
     mpn: mpn ?? "",
@@ -36,7 +37,12 @@ export default async function NewPartPage({ searchParams }: { searchParams: Sear
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
       <h1 className="text-3xl font-bold tracking-tight mb-6">New part</h1>
-      <PartForm prefill={prefill} categories={cats} locations={locations} />
+      <PartForm
+        prefill={prefill}
+        autoLookup={lookup === "1" && !!prefill.orderUrl}
+        categories={cats}
+        locations={locations}
+      />
     </div>
   );
 }

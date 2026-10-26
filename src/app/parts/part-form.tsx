@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Sparkles, X } from "lucide-react";
+import { FileText, ImageIcon, Plus, Sparkles, X } from "lucide-react";
 import type { PartAttribute } from "@/lib/part-attributes";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
@@ -21,7 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LocationPicker } from "@/components/location-picker";
-import { createPart, lookupOrderUrl, updatePart } from "./actions";
+import { attachShopFiles, createPart, lookupOrderUrl, updatePart } from "./actions";
+import { fillAttributes, shopFiles, suggestCategory, type ShopFile } from "./product-fill";
 import { uploadPartFiles } from "./upload";
 
 export type PartFormValues = {
@@ -56,15 +57,18 @@ const FILLABLE = ["name", "manufacturer", "mpn", "description"] as const;
 
 // Create and edit form. On create it also takes the first stock (location +
 // quantity) and files, so a newly bought part is put away in one go.
-// `prefill` seeds a new part (e.g. from a scanned bag label).
+// `prefill` seeds a new part (e.g. from a scanned bag label); `autoLookup`
+// then also runs "Fill from link" right away.
 export function PartForm({
   part,
   prefill,
+  autoLookup,
   categories,
   locations,
 }: {
   part?: PartFormValues;
   prefill?: Partial<PartFormValues> & { initialQuantity?: number };
+  autoLookup?: boolean;
   categories: { id: string; name: string }[];
   locations: LocationOption[];
 }) {
@@ -74,7 +78,12 @@ export function PartForm({
   const [attributes, setAttributes] = useState<PartAttribute[]>(
     initial.attributes.length ? initial.attributes : [{ key: "", value: "" }],
   );
+  // "new" = create `newCategory` on save (typed, or the shop's suggestion).
   const [categoryId, setCategoryId] = useState(initial.categoryId ?? "none");
+  const [newCategory, setNewCategory] = useState("");
+  const [shopCategory, setShopCategory] = useState<string[]>([]);
+  // The shop's datasheet/photo, attached after saving unless unticked.
+  const [offeredFiles, setOfferedFiles] = useState<(ShopFile & { checked: boolean })[]>([]);
   const [locationId, setLocationId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [lookingUp, startLookup] = useTransition();
@@ -96,18 +105,56 @@ export function PartForm({
         toast.error(result.error ?? "No product data found");
         return;
       }
+      const product = result.product;
       const filled: string[] = [];
       for (const name of FILLABLE) {
         const input = field(name);
-        const value = result.product[name];
+        const value = product[name];
         if (input && value && !input.value.trim()) {
           input.value = value;
           filled.push(name === "mpn" ? "MPN" : name);
         }
       }
+      if (categoryId === "none" && product.category.length) {
+        const suggestion = suggestCategory(product.category, categories);
+        if (suggestion && "id" in suggestion) setCategoryId(suggestion.id);
+        else if (suggestion) {
+          setCategoryId("new");
+          setNewCategory(suggestion.name);
+        }
+        if (suggestion) filled.push("category");
+      }
+      setShopCategory(product.category);
+      const added = product.attributes.filter(
+        (shop) => !attributes.some((a) => a.key.trim().toLowerCase() === shop.key.toLowerCase()),
+      ).length;
+      if (added > 0) {
+        setAttributes((prev) => fillAttributes(prev, product.attributes));
+        filled.push(`${added} attribute${added === 1 ? "" : "s"}`);
+      }
+      const offered = shopFiles(product, field("name")?.value ?? "");
+      setOfferedFiles(offered.map((f) => ({ ...f, checked: true })));
+      if (offered.length) filled.push(offered.map((f) => f.label.toLowerCase()).join(" & "));
       if (filled.length) toast.success(`Filled ${filled.join(", ")}`);
       else toast.info("Nothing to fill — those fields are already set");
     });
+  }
+
+  // Coming from a scanned label: look the part up once, on arrival.
+  const autoLooked = useRef(false);
+  useEffect(() => {
+    if (!autoLookup || autoLooked.current) return;
+    autoLooked.current = true;
+    fillFromLink();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
+  }, []);
+
+  // Best effort after the part is saved; the part stands either way.
+  async function attachOfferedFiles(partId: string) {
+    const wanted = offeredFiles.filter((f) => f.checked).map(({ url, name }) => ({ url, name }));
+    if (!wanted.length) return;
+    const result = await attachShopFiles({ partId, files: wanted });
+    if (result.error) toast.error(`Part saved, but: ${result.error}`);
   }
 
   function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -117,6 +164,7 @@ export function PartForm({
       name: form.get("name"),
       description: form.get("description"),
       categoryId,
+      newCategory,
       manufacturer: form.get("manufacturer"),
       mpn: form.get("mpn"),
       unit: form.get("unit"),
@@ -135,6 +183,7 @@ export function PartForm({
             toast.error(result.error);
             return;
           }
+          await attachOfferedFiles(part.id);
           toast.success("Part saved");
           router.push(`/parts/${part.id}`);
           return;
@@ -153,6 +202,7 @@ export function PartForm({
           // The part exists either way; say what didn't make it.
           if (upload.error) toast.error(`Part created, but: ${upload.error}`);
         }
+        await attachOfferedFiles(result.id);
         toast.success("Part created");
         router.push(`/parts/${result.id}`);
       } catch (err) {
@@ -192,8 +242,21 @@ export function PartForm({
                     {c.name}
                   </SelectItem>
                 ))}
+                <SelectItem value="new">New category…</SelectItem>
               </SelectContent>
             </Select>
+            {categoryId === "new" && (
+              <Input
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                placeholder="Category name, e.g. Resistors"
+                aria-label="New category name"
+                required
+              />
+            )}
+            {shopCategory.length > 0 && (
+              <p className="text-xs text-muted-foreground">Shop: {shopCategory.join(" › ")}</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
@@ -243,6 +306,33 @@ export function PartForm({
                 {lookingUp ? "Reading…" : "Fill from link"}
               </Button>
             </div>
+            {offeredFiles.length > 0 && (
+              <div className="grid gap-1 text-sm">
+                <span className="text-muted-foreground">Attach from the shop when saving:</span>
+                {offeredFiles.map((file, index) => (
+                  <label key={file.url} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={file.checked}
+                      onChange={(e) =>
+                        setOfferedFiles((prev) =>
+                          prev.map((f, i) => (i === index ? { ...f, checked: e.target.checked } : f)),
+                        )
+                      }
+                    />
+                    {file.label === "Datasheet" ? (
+                      <FileText className="size-4 text-muted-foreground" />
+                    ) : (
+                      <ImageIcon className="size-4 text-muted-foreground" />
+                    )}
+                    <a href={file.url} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
+                      {file.label}
+                    </a>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label htmlFor="description">

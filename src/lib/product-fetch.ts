@@ -1,4 +1,5 @@
-// Fetches a shop's product page for "fill from order link". Every hop of a
+// Fetches a shop's product page for "fill from order link", and the files it
+// points to (datasheet, product photo) for attaching to a part. Every hop of a
 // redirect chain is checked against src/lib/net-guard.ts before it's
 // requested. (A DNS answer could still change between our lookup and fetch's
 // own — acceptable for a signed-in-users-only feature; pin the address with a
@@ -34,7 +35,7 @@ export async function fetchProductInfo(
       await page.res.body?.cancel();
       return { error: "The link is not a web page" };
     }
-    const html = await readCapped(page.res);
+    const html = new TextDecoder().decode(await readCapped(page.res, MAX_BYTES));
     let product = extractProductInfo(html, page.url);
 
     const shopifyUrl = shopifyProductJsonUrl(html, page.url);
@@ -43,7 +44,8 @@ export async function fetchProductInfo(
       const json = await guardedFetch(shopifyUrl, "application/json", signal).catch(() => null);
       if (json && "res" in json) {
         try {
-          product = mergeShopifyProduct(product, JSON.parse(await readCapped(json.res)), page.url);
+          const body = new TextDecoder().decode(await readCapped(json.res, MAX_BYTES));
+          product = mergeShopifyProduct(product, JSON.parse(body), page.url);
         } catch {}
       }
     }
@@ -51,6 +53,33 @@ export async function fetchProductInfo(
   } catch (err) {
     if (signal.aborted) return { error: "The shop took too long to answer" };
     return { error: `Could not load the page${err instanceof Error ? `: ${err.message}` : ""}` };
+  }
+}
+
+/**
+ * Downloads a file a product page linked to. Anything over `maxBytes` is
+ * refused rather than cut — a truncated PDF is useless.
+ */
+export async function fetchRemoteFile(
+  url: string,
+  maxBytes: number,
+): Promise<{ bytes: Uint8Array; contentType: string; url: string } | { error: string }> {
+  // Datasheets can be large and slow; give them longer than a page.
+  const signal = AbortSignal.timeout(TIMEOUT_MS * 3);
+  try {
+    const result = await guardedFetch(url, "application/pdf,image/*;q=0.9,*/*;q=0.5", signal);
+    if ("error" in result) return result;
+    const { res } = result;
+    if (Number(res.headers.get("content-length") ?? 0) > maxBytes) {
+      await res.body?.cancel();
+      return { error: "The file is too large" };
+    }
+    const bytes = await readCapped(res, maxBytes + 1);
+    if (bytes.byteLength > maxBytes) return { error: "The file is too large" };
+    return { bytes, contentType: res.headers.get("content-type") ?? "", url: result.url };
+  } catch (err) {
+    if (signal.aborted) return { error: "The download took too long" };
+    return { error: `Could not download the file${err instanceof Error ? `: ${err.message}` : ""}` };
   }
 }
 
@@ -106,19 +135,19 @@ async function isPublicHost(hostname: string): Promise<boolean> {
   return addresses.length > 0 && addresses.every((a) => isPublicAddress(a.address));
 }
 
-// Product data sits in <head> or near the top, so a page over the cap is cut
-// rather than rejected.
-async function readCapped(res: Response): Promise<string> {
-  if (!res.body) return "";
+// Reads at most about `limit` bytes. Product data sits in <head> or near the
+// top, so a page over the cap is cut rather than rejected.
+async function readCapped(res: Response, limit: number): Promise<Uint8Array> {
+  if (!res.body) return new Uint8Array();
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  while (size < MAX_BYTES) {
+  while (size < limit) {
     const { done, value } = await reader.read();
     if (done) break;
     chunks.push(value);
     size += value.byteLength;
   }
   await reader.cancel();
-  return new TextDecoder().decode(Buffer.concat(chunks));
+  return new Uint8Array(Buffer.concat(chunks));
 }

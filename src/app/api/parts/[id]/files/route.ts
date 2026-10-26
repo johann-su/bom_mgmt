@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
-import { count, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { files, parts } from "@/db/schema";
+import { parts } from "@/db/schema";
 import { getSession } from "@/lib/auth";
-import { blobStore, newStorageKey } from "@/lib/storage";
-import { contentTypeFor, fileKind, MAX_UPLOAD_BYTES } from "@/lib/file-kind";
-import { logger } from "@/lib/logger";
+import { fileKind, MAX_UPLOAD_BYTES } from "@/lib/file-kind";
+import { storePartFiles } from "@/lib/part-files";
 
 export const runtime = "nodejs";
 
@@ -33,35 +32,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const [{ value: existing }] = await db
-    .select({ value: count() })
-    .from(files)
-    .where(eq(files.partId, id));
-
-  const created: string[] = [];
-  for (const [index, upload] of uploads.entries()) {
-    const key = newStorageKey(upload.name);
-    try {
-      await blobStore().put(key, new Uint8Array(await upload.arrayBuffer()), contentTypeFor(upload.name));
-    } catch (err) {
-      logger.error({ err }, `Failed to store upload ${upload.name}`);
-      return NextResponse.json({ error: "Storage is unavailable" }, { status: 502 });
-    }
-    const [row] = await db
-      .insert(files)
-      .values({
-        partId: id,
-        storageKey: key,
-        filename: upload.name,
-        kind: fileKind(upload.name)!,
-        size: upload.size,
-        position: existing + index,
-      })
-      .returning({ id: files.id });
-    created.push(row.id);
-  }
+  const stored = await storePartFiles(
+    id,
+    await Promise.all(
+      uploads.map(async (upload) => ({ name: upload.name, bytes: new Uint8Array(await upload.arrayBuffer()) })),
+    ),
+  );
+  if ("error" in stored) return NextResponse.json({ error: stored.error }, { status: 502 });
 
   revalidatePath(`/parts/${id}`);
   revalidatePath("/parts");
-  return NextResponse.json({ ids: created });
+  return NextResponse.json({ ids: stored.ids });
 }

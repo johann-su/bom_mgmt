@@ -1,12 +1,16 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { files, parts } from "@/db/schema";
 import { getSession } from "@/lib/auth";
+import { MAX_UPLOAD_BYTES, remoteFilename } from "@/lib/file-kind";
 import * as mutations from "@/lib/part-mutations";
+import { storePartFiles } from "@/lib/part-files";
+import { ensureCategories } from "@/lib/part-import";
 import { parseOrderUrl } from "@/lib/part-input";
-import { fetchProductInfo } from "@/lib/product-fetch";
+import { fetchProductInfo, fetchRemoteFile } from "@/lib/product-fetch";
 import type { ProductInfo } from "@/lib/product-page";
 import { blobStore } from "@/lib/storage";
 import { logger } from "@/lib/logger";
@@ -22,7 +26,23 @@ export async function createPart(
 ): Promise<Result & { id?: string }> {
   const session = await getSession();
   if (!session) return { error: "You must be signed in" };
-  return mutations.createPart(session.user.id, raw);
+  const resolved = await resolveNewCategory(raw);
+  if ("error" in resolved) return resolved;
+  return mutations.createPart(session.user.id, resolved.values);
+}
+
+// The form sends categoryId "new" plus newCategory (a name, e.g. a shop's
+// suggestion the user may have shortened): that category is reused if it
+// exists (case-insensitively), else created.
+async function resolveNewCategory<T extends Record<string, unknown>>(
+  raw: T,
+): Promise<{ values: T } | { error: string }> {
+  if (raw.categoryId !== "new") return { values: raw };
+  const name = String(raw.newCategory ?? "").trim().slice(0, 200);
+  if (!name) return { error: "Enter a name for the new category" };
+  const ids = await db.transaction((tx) => ensureCategories(tx, [name]));
+  revalidatePath("/settings/categories");
+  return { values: { ...raw, categoryId: ids.get(name.toLowerCase()) ?? null } };
 }
 
 /**
@@ -76,7 +96,47 @@ export async function findPartByLabel(input: {
 
 export async function updatePart(raw: Record<string, unknown> & { id: string }): Promise<Result> {
   if (!(await getSession())) return { error: "You must be signed in" };
-  return mutations.updatePart(raw.id, raw);
+  const resolved = await resolveNewCategory(raw);
+  if ("error" in resolved) return resolved;
+  return mutations.updatePart(raw.id, resolved.values);
+}
+
+/**
+ * Downloads files a shop's product page linked to (datasheet, photo) and
+ * attaches them to the part. Each is fetched like the page itself (public
+ * addresses only) and kept only if it really is a PDF or image. Files that
+ * fail are reported; the others are still attached.
+ */
+export async function attachShopFiles(input: {
+  partId: string;
+  files: { url: string; name: string }[];
+}): Promise<Result & { attached?: number }> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const part = await db.query.parts.findFirst({ where: eq(parts.id, input.partId), columns: { id: true } });
+  if (!part) return { error: "Part not found" };
+
+  const downloads: { name: string; bytes: Uint8Array }[] = [];
+  const failed: string[] = [];
+  for (const file of input.files.slice(0, 5)) {
+    const url = parseOrderUrl(file.url);
+    const result = url ? await fetchRemoteFile(url, MAX_UPLOAD_BYTES) : { error: "Not a valid URL" };
+    const name = "error" in result ? null : remoteFilename(file.name, result.contentType, result.url);
+    if ("error" in result || !name) {
+      logger.info({ url: file.url, error: "error" in result ? result.error : "not a PDF or image" }, "Shop file download failed");
+      failed.push(file.name);
+      continue;
+    }
+    downloads.push({ name, bytes: result.bytes });
+  }
+  if (downloads.length) {
+    const stored = await storePartFiles(part.id, downloads);
+    if ("error" in stored) return stored;
+    revalidate(part.id);
+  }
+  return {
+    attached: downloads.length,
+    ...(failed.length ? { error: `Could not download ${failed.join(", ")}` } : {}),
+  };
 }
 
 export async function deletePart(input: { id: string }): Promise<Result> {
