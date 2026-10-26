@@ -6,7 +6,7 @@ import { buildXlsx } from "@/lib/xlsx";
 export const runtime = "nodejs";
 
 // A spreadsheet with the importer's columns and two example rows, to fill in
-// and save as CSV for /parts/import.
+// and upload to /parts/import.
 export async function GET() {
   if (!(await getSession())) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const xlsx = buildXlsx(

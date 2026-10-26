@@ -1,8 +1,6 @@
 # BOM & inventory management
 
-A management app that allows to keep track of inventory of components. It should be organized hierarchically - a shelf, box, bin. Say Shelf A, Box 1, I contains heat set inserts M3x5. The labeling in the previous example is just an example: the real example should ideally be freely configurable (eg alpha for shelfs, numeric for boxes, roman for bins, but could also be alpha-numeric for shelfs, alpha-numeric for boxes, numeric for bins etc - maybe configurable via a regex like syntax).
-
-For auth, oauth2 should be supported alongside password login. 
+A management app that allows to keep track of inventory of components. It is organized hierarchically - a shelf, box, bin. Say Shelf A, Box 1, I contains heat set inserts M3x5. The hierarchy and labeling is freely configurable (eg alpha for shelfs, numeric for boxes, roman for bins).
 
 ## Tech stack
 

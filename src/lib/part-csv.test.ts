@@ -7,6 +7,7 @@ import {
   planPartImport,
   readPartCsv,
   sanitizeMapping,
+  sanitizeRows,
   summarizePlan,
   type KnownLocation,
   type KnownPart,
@@ -129,4 +130,14 @@ test("the downloadable template's headers map onto every field", () => {
   const mapping = guessPartMapping(headers);
   for (const [i, c] of PART_CSV_TEMPLATE.entries()) assert.equal(mapping[c.field], i, c.header);
   assert.equal(PART_CSV_TEMPLATE.length, PART_CSV_FIELDS.length);
+});
+
+// The server action takes rows the browser parsed (CSV or .xlsx), so it must
+// refuse anything that isn't a string grid, and oversized payloads.
+test("sanitizeRows accepts a string grid and rejects malformed or oversized input", () => {
+  assert.deepEqual(sanitizeRows([["Name"], ["NE555", ""]]), [["Name"], ["NE555", ""]]);
+  for (const bad of [null, "Name\nx", [["a", 1]], ["row"], [[{}]]]) assert.equal(sanitizeRows(bad), null);
+  assert.equal(sanitizeRows([["a"], ["b"], ["c"]], { maxRows: 2 }), null);
+  // Empty cells count toward the limit too, so a flood of them is refused.
+  assert.equal(sanitizeRows([Array(11).fill("")], { maxChars: 10 }), null);
 });

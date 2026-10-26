@@ -46,7 +46,7 @@ export default async function PartsPage({ searchParams }: { searchParams: Search
           <Button variant="outline" asChild>
             <Link href="/parts/import">
               <FileUp className="size-4" />
-              Import CSV
+              Import
             </Link>
           </Button>
           <Button asChild>

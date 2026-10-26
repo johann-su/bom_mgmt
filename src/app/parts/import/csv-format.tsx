@@ -29,11 +29,11 @@ export function CsvFormat() {
             </a>
           </Button>
           <span className="text-muted-foreground">
-            Fill it in, delete the example rows, then save it via File → Save As → CSV UTF-8.
+            Fill it in, delete the example rows and upload it as is — .xlsx and CSV both work.
           </span>
         </div>
         <details className="group">
-          <summary className="cursor-pointer font-medium">How the CSV must look</summary>
+          <summary className="cursor-pointer font-medium">How the file must look</summary>
           <div className="mt-3 grid gap-3">
             <ul className="list-disc pl-5 text-muted-foreground">
               <li>
@@ -41,8 +41,12 @@ export function CsvFormat() {
                 one location). Column order doesn&apos;t matter and unknown columns are ignored.
               </li>
               <li>
-                Columns are separated by <code>,</code> or <code>;</code> — both work, as saved by
-                Excel, Numbers or LibreOffice. Save as UTF-8 so umlauts and µ survive.
+                Excel workbooks (<code>.xlsx</code>) are read from their first sheet; formulas
+                import their current value.
+              </li>
+              <li>
+                In a CSV, columns are separated by <code>,</code> or <code>;</code> — both work, as
+                saved by Excel, Numbers or LibreOffice. Save as UTF-8 so umlauts and µ survive.
               </li>
               <li>
                 Only <strong>Name</strong> or <strong>MPN</strong> is required. Empty cells never

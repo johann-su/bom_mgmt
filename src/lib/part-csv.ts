@@ -113,10 +113,33 @@ export function guessPartMapping(headers: string[]): PartCsvMapping {
 
 export type PartCsvTable = { headers: string[]; rows: string[][] };
 
+/** Splits parsed rows (from a CSV or an .xlsx sheet) into header and data rows. */
+export function partTableFromRows([headers = [], ...rows]: string[][]): PartCsvTable {
+  return { headers: headers.map((h) => h.trim()), rows };
+}
+
 /** Splits CSV text into its header row and data rows. */
 export function readPartCsv(text: string): PartCsvTable {
-  const [headers = [], ...rows] = parseCsv(text);
-  return { headers: headers.map((h) => h.trim()), rows };
+  return partTableFromRows(parseCsv(text));
+}
+
+/**
+ * Validates rows sent by the client: an array of string arrays within the
+ * size limits, or null. The browser parses the file (CSV or .xlsx) so the
+ * server never unzips user uploads.
+ */
+export function sanitizeRows(raw: unknown, { maxRows = 50_000, maxChars = 5_000_000 } = {}): string[][] | null {
+  if (!Array.isArray(raw) || raw.length > maxRows) return null;
+  let chars = 0;
+  for (const row of raw) {
+    if (!Array.isArray(row)) return null;
+    for (const cell of row) {
+      if (typeof cell !== "string") return null;
+      chars += cell.length + 1; // +1 so a flood of empty cells counts too
+    }
+    if (chars > maxChars) return null;
+  }
+  return raw as string[][];
 }
 
 /**

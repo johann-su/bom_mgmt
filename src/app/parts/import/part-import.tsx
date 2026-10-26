@@ -8,10 +8,12 @@ import {
   guessPartMapping,
   PART_CSV_FIELD_LABELS,
   PART_CSV_FIELDS,
-  readPartCsv,
+  partTableFromRows,
   type PartCsvField,
   type PartCsvMapping,
 } from "@/lib/part-csv";
+import { parseCsv } from "@/lib/csv";
+import { readXlsx } from "@/lib/xlsx";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,11 +38,11 @@ import { importParts, type PartImportResult, type StockImportMode } from "./acti
 const UNMAPPED = "none";
 
 // Pick a file → adjust the guessed column mapping while a dry run previews
-// what would happen → import. The server re-parses the CSV with the mapping;
-// the client parse only feeds the header dropdowns.
+// what would happen → import. The browser parses the file (CSV or .xlsx) and
+// sends its rows; the server plans the import from them with the mapping.
 export function PartImport() {
   const router = useRouter();
-  const [csv, setCsv] = useState<string | null>(null);
+  const [rows, setRows] = useState<string[][] | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<PartCsvMapping>({});
   const [stockMode, setStockMode] = useState<StockImportMode>("add");
@@ -51,14 +53,22 @@ export function PartImport() {
   async function pickFile(file: File | undefined) {
     setPreview(null);
     setDone(null);
-    if (!file) return setCsv(null);
-    const text = await file.text();
-    const table = readPartCsv(text);
+    if (!file) return setRows(null);
+    let parsed: string[][];
+    try {
+      parsed = /\.xlsx$/i.test(file.name)
+        ? readXlsx(new Uint8Array(await file.arrayBuffer()))
+        : parseCsv(await file.text());
+    } catch {
+      toast.error("Couldn't read the file — is it a valid .xlsx?");
+      return setRows(null);
+    }
+    const table = partTableFromRows(parsed);
     if (table.headers.length === 0) {
       toast.error("The file is empty");
-      return setCsv(null);
+      return setRows(null);
     }
-    setCsv(text);
+    setRows(parsed);
     setHeaders(table.headers);
     setMapping(guessPartMapping(table.headers));
   }
@@ -66,15 +76,15 @@ export function PartImport() {
   // Re-run the dry run whenever the input changes; a stale response from an
   // older mapping is dropped.
   useEffect(() => {
-    if (csv === null) return;
+    if (rows === null) return;
     let current = true;
-    importParts({ csv, mapping, stockMode, dryRun: true }).then((result) => {
+    importParts({ rows, mapping, stockMode, dryRun: true }).then((result) => {
       if (current) setPreview(result);
     });
     return () => {
       current = false;
     };
-  }, [csv, mapping, stockMode]);
+  }, [rows, mapping, stockMode]);
 
   function setField(field: PartCsvField, value: string) {
     setMapping((prev) => {
@@ -91,9 +101,9 @@ export function PartImport() {
   }
 
   function runImport() {
-    if (csv === null) return;
+    if (rows === null) return;
     startTransition(async () => {
-      const result = await importParts({ csv, mapping, stockMode, dryRun: false });
+      const result = await importParts({ rows, mapping, stockMode, dryRun: false });
       if (result.error) {
         toast.error(result.error);
         return;
@@ -136,15 +146,15 @@ export function PartImport() {
         <CardContent>
           <input
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="text-sm"
-            aria-label="CSV file"
+            aria-label="CSV or Excel file"
             onChange={(e) => pickFile(e.target.files?.[0])}
           />
         </CardContent>
       </Card>
 
-      {csv !== null && (
+      {rows !== null && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Columns</CardTitle>

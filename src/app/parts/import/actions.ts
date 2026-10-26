@@ -9,9 +9,10 @@ import { loadLocationOptions } from "@/lib/locations";
 import { htmlToMarkdown } from "@/lib/markdown";
 import { applyDelta, recordMovement } from "@/lib/movements";
 import {
+  partTableFromRows,
   planPartImport,
-  readPartCsv,
   sanitizeMapping,
+  sanitizeRows,
   summarizePlan,
   type PartImportPlan,
 } from "@/lib/part-csv";
@@ -37,23 +38,25 @@ export type PartImportResult = {
 const PREVIEW_ROWS = 200;
 
 /**
- * Imports parts from CSV with a column mapping chosen in the UI. With
+ * Imports parts from a spreadsheet's rows (CSV or .xlsx, parsed in the
+ * browser) with a column mapping chosen in the UI. With
  * `dryRun` nothing is written — the preview the page shows while the mapping
  * is being adjusted. Stock rows are booked as "add" movements (`add`), or as
  * a stock-take setting the location's count (`set`), which makes
  * re-importing the same inventory sheet idempotent.
  */
 export async function importParts(input: {
-  csv: string;
+  rows: unknown;
   mapping: unknown;
   stockMode: StockImportMode;
   dryRun: boolean;
 }): Promise<PartImportResult> {
   const session = await getSession();
   if (!session) return { error: "You must be signed in" };
-  if (input.csv.length > 5_000_000) return { error: "The file is too large" };
+  const rows = sanitizeRows(input.rows);
+  if (!rows) return { error: "The file is too large or unreadable" };
 
-  const table = readPartCsv(input.csv);
+  const table = partTableFromRows(rows);
   if (table.headers.length === 0) return { error: "The file is empty" };
   const mapping = sanitizeMapping(input.mapping, table.headers.length);
 
