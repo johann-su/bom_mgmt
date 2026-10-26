@@ -99,7 +99,9 @@ export async function createGenericParts(input: {
 
   let created = 0;
   for (const part of fresh) {
-    const result = await mutations.createPart(session.user.id, { ...part, categoryId });
+    // Generic parts are bulk commodities (screws, crimp housings) — kept as a
+    // level rather than counted.
+    const result = await mutations.createPart(session.user.id, { ...part, categoryId, tracking: "level" });
     if (result.error) return { error: result.error, created };
     created++;
   }

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, Hammer, Minus, Plus, Scale } from "lucide-react";
+import { ArrowRight, Gauge, Hammer, Minus, Plus, Scale } from "lucide-react";
 import type { MovementRow } from "@/lib/movement-queries";
 import { formatDateTime, formatQuantity } from "@/lib/format";
+import { levelLabel, STOCK_LEVELS } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 
-const KIND_ICON = { add: Plus, remove: Minus, adjust: Scale, move: ArrowRight, build: Hammer };
+const KIND_ICON = { add: Plus, remove: Minus, adjust: Scale, move: ArrowRight, build: Hammer, level: Gauge };
 
 // A location as recorded at the time — linked while it still exists. No
 // path means the unsorted pile (a deleted location keeps its path).
@@ -38,7 +39,9 @@ export function MovementList({
             <div
               className={cn(
                 "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full",
-                m.kind === "add" || (m.kind === "adjust" && m.quantity > 0)
+                m.kind === "add" ||
+                  (m.kind === "adjust" && m.quantity > 0) ||
+                  (m.kind === "level" && m.quantity >= STOCK_LEVELS.plenty)
                   ? "bg-primary/15 text-primary"
                   : m.kind === "move"
                     ? "bg-muted text-muted-foreground"
@@ -56,10 +59,20 @@ export function MovementList({
                 )}
                 {m.kind === "move" ? (
                   <>
-                    <span>moved {formatQuantity(m.quantity, m.unit)}</span>
+                    {/* 0 = everything there (level and untracked parts). */}
+                    <span>moved {m.quantity === 0 ? "all" : formatQuantity(m.quantity, m.unit)}</span>
                     <Place id={m.locationId} path={m.locationPath} />
                     <ArrowRight className="size-3.5 text-muted-foreground" />
                     <Place id={m.toLocationId} path={m.toLocationPath} />
+                  </>
+                ) : m.kind === "level" ? (
+                  <>
+                    <span className="text-muted-foreground">marked</span>
+                    <span className="font-medium">
+                      {levelLabel(m.tracking === "binary" ? "binary" : "level", m.quantity).toLowerCase()}
+                    </span>
+                    <span className="text-muted-foreground">at</span>
+                    <Place id={m.locationId} path={m.locationPath} />
                   </>
                 ) : (
                   <>

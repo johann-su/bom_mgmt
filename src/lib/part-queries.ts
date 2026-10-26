@@ -1,9 +1,23 @@
 import { and, asc, eq, exists, gt, ilike, inArray, isNotNull, isNull, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { categories, parts, stock } from "@/db/schema";
+import { STOCK_LEVELS } from "@/lib/stock";
 
-// Total stock of a part across all locations, as a correlated subquery.
-export const totalStock = sql<number>`coalesce((select sum(${stock.quantity}) from ${stock} where ${stock.partId} = ${parts.id}), 0)::int`;
+// Total stock of a part across all locations, as a correlated subquery: the
+// sum for exact parts, the best level for level/binary ones, 0 for untracked
+// ones — totalStock in src/lib/stock.ts is the reference.
+export const totalStock = sql<number>`coalesce((select case ${parts.tracking}
+    when 'exact' then sum(${stock.quantity})
+    when 'none' then 0
+    else max(${stock.quantity}) end
+  from ${stock} where ${stock.partId} = ${parts.id}), 0)::int`;
+
+// Parts that need restocking — isLowStock in src/lib/stock.ts is the
+// reference.
+export const lowStockFilter = or(
+  and(eq(parts.tracking, "exact"), isNotNull(parts.minStock), sql`${totalStock} < ${parts.minStock}`),
+  and(inArray(parts.tracking, ["level", "binary"]), sql`${totalStock} < ${STOCK_LEVELS.plenty}`),
+)!;
 
 export function escapeLike(text: string): string {
   return text.replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -33,7 +47,7 @@ export async function listParts(filters: {
   const conditions = [
     filters.q ? partSearchFilter(filters.q) : undefined,
     filters.categoryId ? eq(parts.categoryId, filters.categoryId) : undefined,
-    filters.lowStock ? and(isNotNull(parts.minStock), sql`${totalStock} < ${parts.minStock}`) : undefined,
+    filters.lowStock ? lowStockFilter : undefined,
     filters.unsorted
       ? exists(
           db
@@ -51,6 +65,7 @@ export async function listParts(filters: {
       mpn: parts.mpn,
       manufacturer: parts.manufacturer,
       unit: parts.unit,
+      tracking: parts.tracking,
       minStock: parts.minStock,
       orderUrls: parts.orderUrls,
       icon: parts.icon,

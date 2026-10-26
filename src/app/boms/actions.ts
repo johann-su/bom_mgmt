@@ -6,7 +6,14 @@ import { asc, count, eq, max } from "drizzle-orm";
 import { db } from "@/db";
 import { bomItems, boms, parts, stock } from "@/db/schema";
 import { getSession } from "@/lib/auth";
-import { parseQuantity, planConsumption, type Allocation } from "@/lib/stock";
+import {
+  deductsOnBuild,
+  parseQuantity,
+  planConsumption,
+  requirements,
+  totalStock,
+  type Allocation,
+} from "@/lib/stock";
 import { applyDelta, locationCodes, recordMovement } from "@/lib/movements";
 import { parseBomCsv } from "@/lib/bom-csv";
 import { matchPart } from "@/lib/bom-match";
@@ -133,7 +140,8 @@ export async function removeBomItem(input: { id: string }): Promise<Result> {
 /**
  * Builds `units` of a BOM: takes every line's parts out of stock (smallest
  * bins first, see planConsumption) and logs each draw as a "build" movement.
- * All or nothing — if any line is short, nothing is taken.
+ * All or nothing — if any line is short, nothing is taken. Only counted parts
+ * are taken (deductsOnBuild); an empty level/binary part still blocks.
  */
 export async function buildBom(input: {
   bomId: string;
@@ -149,7 +157,12 @@ export async function buildBom(input: {
   try {
     const taken = await db.transaction(async (tx) => {
       const items = await tx
-        .select({ partId: bomItems.partId, perUnit: bomItems.quantity, name: parts.name })
+        .select({
+          partId: bomItems.partId,
+          perUnit: bomItems.quantity,
+          name: parts.name,
+          tracking: parts.tracking,
+        })
         .from(bomItems)
         .innerJoin(parts, eq(parts.id, bomItems.partId))
         .where(eq(bomItems.bomId, input.bomId))
@@ -166,6 +179,14 @@ export async function buildBom(input: {
           .from(stock)
           .where(eq(stock.partId, item.partId))
           .for("update");
+        if (!deductsOnBuild(item.tracking)) {
+          const line = {
+            ...item,
+            inStock: totalStock(item.tracking, slots.map((s) => s.quantity)),
+          };
+          if (requirements([line], units)[0].shortfall > 0) short.push(item.name);
+          continue;
+        }
         const allocations = planConsumption(slots, item.perUnit * units);
         if (!allocations) short.push(item.name);
         else plans.push({ partId: item.partId, allocations });

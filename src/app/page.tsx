@@ -9,6 +9,7 @@ import { hasLocationTypes } from "@/lib/locations";
 import { listParts } from "@/lib/part-queries";
 import { recentMovements } from "@/lib/movement-queries";
 import { formatQuantity } from "@/lib/format";
+import { formatStock } from "@/lib/stock";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MovementList } from "@/components/movement-list";
 
@@ -68,7 +69,8 @@ export default async function DashboardPage() {
           <CardContent>
             {low.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Nothing below its minimum. Set a minimum stock on a part to track it here.
+                Nothing below its minimum. Set a minimum stock on a part, or track it by level, to
+                see it here when it runs low.
               </p>
             ) : (
               <ul className="grid gap-2 text-sm">
@@ -79,8 +81,14 @@ export default async function DashboardPage() {
                     </Link>
                     <span className="flex shrink-0 items-center gap-2">
                       <span className="tabular-nums text-destructive">
-                        {formatQuantity(p.total, p.unit)}
-                        <span className="text-muted-foreground"> / {p.minStock}</span>
+                        {p.tracking === "exact" ? (
+                          <>
+                            {formatQuantity(p.total, p.unit)}
+                            <span className="text-muted-foreground"> / {p.minStock}</span>
+                          </>
+                        ) : (
+                          formatStock(p.tracking, p.total, p.unit)
+                        )}
                       </span>
                       {p.orderUrls[0] && (
                         // The preferred supplier; the part page lists the others.

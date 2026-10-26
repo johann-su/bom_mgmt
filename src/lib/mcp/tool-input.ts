@@ -10,6 +10,7 @@
 import { InvalidParamsError, ToolError } from "@/lib/mcp/protocol";
 import { mergeAttributes, normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import { PART_CSV_FIELDS, type PartCsvField, type PartCsvMapping } from "@/lib/part-csv";
+import type { Tracking } from "@/lib/stock";
 
 export type LocationRef = { id: string; code: string; path: string };
 
@@ -76,6 +77,7 @@ export type StoredPart = {
   manufacturer: string;
   mpn: string;
   unit: string;
+  tracking: Tracking;
   minStock: number | null;
   orderUrls: string[];
   icon: string;
@@ -90,6 +92,8 @@ export type PartPatch = Partial<Record<(typeof TEXT_FIELDS)[number], string>> & 
   categoryId?: string | null;
   /** null clears the threshold. */
   minStock?: number | null;
+  /** Switching converts the stored stock (see convertStock). */
+  tracking?: Tracking;
   /** Replaces the part's supplier links (preferred first); [] clears them. */
   orderUrls?: string[];
   /** Merged by key: existing keys take the new value, new keys append. */
@@ -115,6 +119,7 @@ export function partFormValues(existing: StoredPart, patch: PartPatch): Record<s
   if (patch.categoryId !== undefined) values.categoryId = patch.categoryId ?? "";
   if (patch.minStock !== undefined) values.minStock = patch.minStock === null ? "" : String(patch.minStock);
   if (patch.orderUrls !== undefined) values.orderUrls = patch.orderUrls;
+  if (patch.tracking !== undefined) values.tracking = patch.tracking;
 
   let attributes = existing.attributes;
   if (patch.attributes?.length) attributes = mergeAttributes(attributes, patch.attributes);

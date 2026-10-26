@@ -10,7 +10,7 @@ import { loadLocationOptions } from "@/lib/locations";
 import { recentMovements } from "@/lib/movement-queries";
 import { formatQuantity } from "@/lib/format";
 import { supplierName } from "@/lib/part-input";
-import { isLowStock, toPickerValue } from "@/lib/stock";
+import { formatStock, isLowStock, toPickerValue, totalStock, TRACKING_INFO } from "@/lib/stock";
 import { isUuid } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,13 +82,16 @@ export default async function PartPage({ params }: Params) {
     .sort((a, b) => a.location.code.localeCompare(b.location.code, undefined, { numeric: true }));
   // The pile not put away yet; an emptied one is just not shown.
   const unsorted = stockRows.find((s) => s.locationId === null)?.quantity ?? 0;
-  const total = stockRows.reduce((sum, s) => sum + s.quantity, 0);
-  const low = isLowStock(total, part.minStock);
+  const tracking = part.tracking;
+  const counted = tracking === "exact";
+  const total = totalStock(tracking, stockRows.map((s) => s.quantity));
+  const low = isLowStock(total, part.minStock, tracking);
   const stockByLocation = Object.fromEntries(
     stockRows.map((s) => [toPickerValue(s.locationId), s.quantity]),
   );
   const cover = partFiles.find((f) => f.kind === "image");
-  const stockPart = { id, name: part.name, unit: part.unit };
+  const stockPart = { id, name: part.name, unit: part.unit, tracking };
+  const show = (quantity: number) => formatStock(tracking, quantity, part.unit);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -114,7 +117,7 @@ export default async function PartPage({ params }: Params) {
           {part.orderUrls[0] && (
             // Out of stock or below minimum → the primary action is reordering,
             // from the preferred (first) supplier; the others are listed below.
-            <Button variant={low || total === 0 ? "default" : "outline"} asChild>
+            <Button variant={low || (counted && total === 0) ? "default" : "outline"} asChild>
               <a
                 href={part.orderUrls[0]}
                 target="_blank"
@@ -143,11 +146,22 @@ export default async function PartPage({ params }: Params) {
               <div>
                 <CardTitle className="text-base">Stock</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  <span className={low ? "font-medium text-destructive" : undefined}>
-                    {formatQuantity(total, part.unit)}
-                  </span>{" "}
-                  in total
-                  {part.minStock !== null && <> · minimum {formatQuantity(part.minStock, part.unit)}</>}
+                  {counted ? (
+                    <>
+                      <span className={low ? "font-medium text-destructive" : undefined}>
+                        {formatQuantity(total, part.unit)}
+                      </span>{" "}
+                      in total
+                      {part.minStock !== null && <> · minimum {formatQuantity(part.minStock, part.unit)}</>}
+                    </>
+                  ) : tracking === "none" ? (
+                    "Not tracked — only where it lives"
+                  ) : (
+                    <>
+                      <span className={low ? "font-medium text-destructive" : undefined}>{show(total)}</span>
+                      {" · "}tracked by {TRACKING_INFO[tracking].label.toLowerCase()}
+                    </>
+                  )}
                 </p>
               </div>
               <StockDialog
@@ -158,7 +172,7 @@ export default async function PartPage({ params }: Params) {
                 trigger={
                   <Button size="sm">
                     <PackagePlus className="size-4" />
-                    Add stock
+                    {counted ? "Add stock" : tracking === "none" ? "Store somewhere" : "Set level"}
                   </Button>
                 }
               />
@@ -173,7 +187,7 @@ export default async function PartPage({ params }: Params) {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Location</TableHead>
-                      <TableHead className="text-right">Quantity</TableHead>
+                      <TableHead className="text-right">{counted ? "Quantity" : tracking === "none" ? "" : "Level"}</TableHead>
                       <TableHead className="w-20" />
                     </TableRow>
                   </TableHeader>
@@ -188,7 +202,7 @@ export default async function PartPage({ params }: Params) {
                           <div className="text-xs text-muted-foreground">Not put away yet</div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {formatQuantity(unsorted, part.unit)}
+                          {show(unsorted)}
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end">
@@ -220,7 +234,7 @@ export default async function PartPage({ params }: Params) {
                           <div className="text-xs text-muted-foreground">{s.location.path}</div>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {formatQuantity(s.quantity, part.unit)}
+                          {tracking !== "none" && show(s.quantity)}
                         </TableCell>
                         <TableCell>
                           <div className="flex justify-end">
@@ -229,7 +243,7 @@ export default async function PartPage({ params }: Params) {
                               locationId={s.locationId}
                               locations={locations}
                               stockByLocation={stockByLocation}
-                              initialMode="remove"
+                              initialMode={tracking === "none" ? "move" : "remove"}
                               trigger={
                                 <Button variant="ghost" size="icon" aria-label="Change stock">
                                   <ArrowRightLeft className="size-4" />

@@ -1,5 +1,6 @@
 import { isIconId } from "@/lib/label-icons";
 import { normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
+import { isTracking, type Tracking } from "@/lib/stock";
 
 export type PartInput = {
   name: string;
@@ -8,6 +9,7 @@ export type PartInput = {
   manufacturer: string;
   mpn: string;
   unit: string;
+  tracking: Tracking;
   minStock: number | null;
   orderUrls: string[];
   icon: string;
@@ -32,6 +34,11 @@ export function parsePartInput(raw: Record<string, unknown>): PartInput | { erro
     minStock = Number(rawMin);
   }
 
+  // Blank means the default, so callers that predate tracking modes keep
+  // counting.
+  const tracking = text("tracking", 20) || "exact";
+  if (!isTracking(tracking)) return { error: `Unknown stock tracking "${tracking}"` };
+
   const orderUrls = parseOrderUrls(raw.orderUrls);
   if ("error" in orderUrls) return orderUrls;
 
@@ -48,6 +55,7 @@ export function parsePartInput(raw: Record<string, unknown>): PartInput | { erro
     mpn: text("mpn", 200),
     // Blank unit means the default; units are short labels, not prose.
     unit: text("unit", 20) || "pcs",
+    tracking,
     minStock,
     orderUrls: orderUrls.urls,
     icon: isIconId(icon) ? icon : "",

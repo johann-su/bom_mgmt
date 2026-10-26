@@ -27,6 +27,7 @@ export async function recentMovements({
       partId: stockMovements.partId,
       partName: parts.name,
       unit: parts.unit,
+      tracking: parts.tracking,
       userName: user.name,
       bomId: stockMovements.bomId,
       bomName: boms.name,

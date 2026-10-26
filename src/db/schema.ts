@@ -15,7 +15,7 @@ import {
 import { relations, sql } from "drizzle-orm";
 import type { UserRole } from "@/lib/roles";
 import type { PartAttribute } from "@/lib/part-attributes";
-import type { MovementKind } from "@/lib/stock";
+import type { MovementKind, Tracking } from "@/lib/stock";
 import type { LabelTemplate } from "@/lib/label-template";
 import type { LabelSlots } from "@/lib/label-slots";
 
@@ -370,7 +370,11 @@ export const parts = pgTable(
     // Unit stock is counted in ("pcs", "m", "g"); quantities are integers, so
     // pick a unit small enough (cm of wire, g of solder).
     unit: text("unit").notNull().default("pcs"),
-    // Low-stock threshold across all locations; null = not tracked.
+    // How stock is kept: a count, a level, in/out, or not at all (see
+    // TRACKING_MODES in src/lib/stock.ts). Decides what stock.quantity means.
+    tracking: text("tracking").$type<Tracking>().notNull().default("exact"),
+    // Low-stock threshold across all locations (exact parts only); null = not
+    // tracked.
     minStock: integer("min_stock"),
     // Product pages of the suppliers the part can be reordered from, the
     // preferred one first; empty = none. Shown as "Order" links, prominently
@@ -411,7 +415,9 @@ export const files = pgTable(
   (t) => [index("files_part_idx").on(t.partId)],
 );
 
-// How many of a part sit in one location. A part may be spread over several
+// How many of a part sit in one location — a count for exact parts, a level
+// (STOCK_LEVELS) for level/binary ones, always 0 for untracked ones, whose
+// rows only record where they live. A part may be spread over several
 // locations; a row at quantity 0 is kept so the part's "home" isn't forgotten
 // when the bin runs empty. A null location is the part's "unsorted" pile —
 // stock that is on hand but not put away yet (at most one per part).
@@ -445,9 +451,10 @@ export const stockMovements = pgTable(
       .references(() => parts.id, { onDelete: "cascade" }),
     kind: text("kind").$type<MovementKind>().notNull(),
     // Signed change at `locationId` (+ for add, − for remove/build). For a
-    // move it is the (positive) amount that went from → to. A null location
-    // with an empty path is the unsorted pile; a null one with a path is a
-    // location deleted since.
+    // move it is the (positive) amount that went from → to; 0 means
+    // everything there moved (level and untracked parts). For "level" it is
+    // the new level. A null location with an empty path is the unsorted
+    // pile; a null one with a path is a location deleted since.
     quantity: integer("quantity").notNull(),
     locationId: uuid("location_id").references(() => locations.id, { onDelete: "set null" }),
     toLocationId: uuid("to_location_id").references(() => locations.id, {

@@ -13,6 +13,7 @@ export async function loadBomLines(bomId: string) {
       mpn: parts.mpn,
       manufacturer: parts.manufacturer,
       unit: parts.unit,
+      tracking: parts.tracking,
       perUnit: bomItems.quantity,
       reference: bomItems.reference,
       notes: bomItems.notes,
@@ -31,7 +32,7 @@ export async function listBoms() {
   const [all, lines] = await Promise.all([
     db.select().from(boms).orderBy(desc(boms.updatedAt)),
     db
-      .select({ bomId: bomItems.bomId, partId: bomItems.partId, perUnit: bomItems.quantity, inStock: totalStock })
+      .select({ bomId: bomItems.bomId, partId: bomItems.partId, perUnit: bomItems.quantity, inStock: totalStock, tracking: parts.tracking })
       .from(bomItems)
       .innerJoin(parts, eq(parts.id, bomItems.partId)),
   ]);

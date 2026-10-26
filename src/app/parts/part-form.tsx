@@ -9,6 +9,7 @@ import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
 import { isNextRedirectError } from "@/lib/utils";
+import { levelChoices, TRACKING_INFO, TRACKING_MODES, type Tracking } from "@/lib/stock";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ export type PartFormValues = {
   manufacturer: string;
   mpn: string;
   unit: string;
+  tracking: Tracking;
   minStock: number | null;
   orderUrls: string[];
   icon: string;
@@ -49,6 +51,7 @@ const EMPTY: PartFormValues = {
   manufacturer: "",
   mpn: "",
   unit: "pcs",
+  tracking: "exact",
   minStock: null,
   orderUrls: [],
   icon: "",
@@ -98,6 +101,9 @@ export function PartForm({
   // photo worth fetching);
   // editing a part keeps whatever it has.
   const [icon, setIcon] = useState(initial.icon);
+  const [tracking, setTracking] = useState<Tracking>(initial.tracking);
+  // First level of a new level/binary part; "unset" = no stock booked yet.
+  const [initialLevel, setInitialLevel] = useState("unset");
   const [pending, startTransition] = useTransition();
   const [lookingUp, startLookup] = useTransition();
   // Which link "Fill from link" is reading, for its button label.
@@ -132,6 +138,9 @@ export function PartForm({
     }
     if (categoryId === "none" || categoryId === "new") applyCategory(generated.category);
     setIcon(generated.icon);
+    // Screws and crimp housings aren't worth counting; a new one defaults to
+    // a level (the user can still switch back).
+    if (!part) setTracking("level");
     setAttributes((prev) =>
       mergeAttributes(prev.filter((a) => a.key.trim() || a.value.trim()), generated.attributes),
     );
@@ -206,7 +215,10 @@ export function PartForm({
       manufacturer: form.get("manufacturer"),
       mpn: form.get("mpn"),
       unit: form.get("unit"),
-      minStock: form.get("minStock"),
+      tracking,
+      // The minimum is a count, so the field is off for other modes; keep the
+      // stored one for when the part is counted again.
+      minStock: tracking === "exact" ? form.get("minStock") : (initial.minStock ?? ""),
       orderUrls,
       icon,
       notes: form.get("notes"),
@@ -230,7 +242,13 @@ export function PartForm({
         const result = await createPart({
           ...values,
           initialLocationId: locationId,
-          initialQuantity: String(form.get("initialQuantity") ?? ""),
+          initialQuantity:
+            tracking === "exact"
+              ? String(form.get("initialQuantity") ?? "")
+              : // A level picked before switching to binary may not exist there.
+                levelChoices(tracking).some((l) => String(l.value) === initialLevel)
+                ? initialLevel
+                : "",
         });
         if (result.error || !result.id) {
           toast.error(result.error ?? "Could not create the part");
@@ -315,8 +333,39 @@ export function PartForm({
                 step={1}
                 defaultValue={initial.minStock ?? ""}
                 placeholder="—"
+                disabled={tracking !== "exact"}
+                title={tracking !== "exact" ? "Only counted parts have a minimum" : undefined}
               />
             </div>
+          </div>
+          <div className="grid gap-2 sm:col-span-2">
+            <Label>Stock tracking</Label>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <Select value={tracking} onValueChange={(v) => setTracking(v as Tracking)}>
+                <SelectTrigger className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRACKING_MODES.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {TRACKING_INFO[m].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">{TRACKING_INFO[tracking].hint}</p>
+            </div>
+            {part && tracking !== initial.tracking && (
+              <p className="text-xs text-muted-foreground">
+                {tracking === "exact"
+                  ? "Levels aren't counts — every location starts at 0 and needs counting after saving."
+                  : tracking === "none"
+                    ? "Stored stock is dropped; the locations are kept."
+                    : initial.tracking === "exact"
+                      ? "Counts become levels: none left is empty, below the minimum is low."
+                      : "Levels carry over."}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="manufacturer">Manufacturer</Label>
@@ -484,17 +533,38 @@ export function PartForm({
                 placeholder="Where is it stored? (empty = unsorted)"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="initialQuantity">Quantity</Label>
-              <Input
-                id="initialQuantity"
-                name="initialQuantity"
-                type="number"
-                min={0}
-                step={1}
-                defaultValue={prefill?.initialQuantity ?? ""}
-              />
-            </div>
+            {tracking === "exact" ? (
+              <div className="grid gap-2">
+                <Label htmlFor="initialQuantity">Quantity</Label>
+                <Input
+                  id="initialQuantity"
+                  name="initialQuantity"
+                  type="number"
+                  min={0}
+                  step={1}
+                  defaultValue={prefill?.initialQuantity ?? ""}
+                />
+              </div>
+            ) : tracking !== "none" ? (
+              <div className="grid gap-2">
+                <Label>Level</Label>
+                <Select value={initialLevel} onValueChange={setInitialLevel}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unset">—</SelectItem>
+                    {levelChoices(tracking).map((l) => (
+                      <SelectItem key={l.value} value={String(l.value)}>
+                        {l.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div />
+            )}
             <div className="grid gap-2 sm:col-span-2">
               <Label htmlFor="files">Images & datasheets</Label>
               <Input id="files" name="files" type="file" multiple accept={ACCEPTED_UPLOADS} />

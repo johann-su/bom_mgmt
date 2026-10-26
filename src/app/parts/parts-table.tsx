@@ -1,7 +1,6 @@
 import Link from "next/link";
 import type { PartListRow } from "@/lib/part-queries";
-import { formatQuantity } from "@/lib/format";
-import { isLowStock } from "@/lib/stock";
+import { formatStock, isLowStock } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -36,7 +35,7 @@ export function PartsTable({ rows }: { rows: PartsTableRow[] }) {
         </TableHeader>
         <TableBody>
           {rows.map((row) => {
-            const low = isLowStock(row.total, row.minStock);
+            const low = isLowStock(row.total, row.minStock, row.tracking);
             return (
               <TableRow key={row.id}>
                 <TableCell>
@@ -70,9 +69,15 @@ export function PartsTable({ rows }: { rows: PartsTableRow[] }) {
                     )}
                   </div>
                 </TableCell>
-                <TableCell className={cn("text-right tabular-nums", low && "text-destructive font-medium")}>
-                  {formatQuantity(row.total, row.unit)}
-                  {low && <div className="text-xs font-normal">min {row.minStock}</div>}
+                <TableCell
+                  className={cn(
+                    "text-right tabular-nums",
+                    low && "text-destructive font-medium",
+                    row.tracking === "none" && "text-muted-foreground",
+                  )}
+                >
+                  {formatStock(row.tracking, row.total, row.unit)}
+                  {low && row.tracking === "exact" && <div className="text-xs font-normal">min {row.minStock}</div>}
                 </TableCell>
               </TableRow>
             );

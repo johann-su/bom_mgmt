@@ -12,6 +12,7 @@ export async function loadPartOptions() {
       mpn: parts.mpn,
       manufacturer: parts.manufacturer,
       unit: parts.unit,
+      tracking: parts.tracking,
     })
     .from(parts)
     .orderBy(asc(parts.name));
@@ -20,5 +21,6 @@ export async function loadPartOptions() {
     label: p.name,
     detail: [p.manufacturer, p.mpn].filter(Boolean).join(" · ") || undefined,
     unit: p.unit,
+    tracking: p.tracking,
   }));
 }

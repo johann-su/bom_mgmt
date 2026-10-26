@@ -11,6 +11,7 @@ import { htmlToMarkdown } from "@/lib/markdown";
 import { applyDelta, recordMovement, stockAt } from "@/lib/movements";
 import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import { mergeOrderUrls } from "@/lib/part-input";
+import { convertStock, type Tracking } from "@/lib/stock";
 import { revalidateInventory } from "@/lib/part-mutations";
 import {
   partTableFromRows,
@@ -151,6 +152,25 @@ export async function runPartImport(
 
       if (!row.stock) continue;
       const { locationId, quantity } = row.stock;
+      // New parts are counted; an existing level/binary/untracked one turns a
+      // received count into "plenty" / just its home (see bookUncounted).
+      const part = await tx.query.parts.findFirst({
+        where: eq(parts.id, partId),
+        columns: { tracking: true },
+      });
+      if (part && part.tracking !== "exact") {
+        await bookUncounted(tx, {
+          partId,
+          tracking: part.tracking,
+          mode: input.stockMode,
+          locationId,
+          quantity,
+          codes,
+          userId,
+          note: input.note,
+        });
+        continue;
+      }
       let delta = quantity;
       if (input.stockMode === "set") {
         const current = await tx.query.stock.findFirst({
@@ -180,6 +200,54 @@ export async function runPartImport(
 
   revalidateInventory();
   return { summary, errors: plan.errors };
+}
+
+/**
+ * Books an imported count against a part that isn't counted: a level/binary
+ * part becomes plenty / in stock there when the row brings any (an order
+ * arrived), and empty when a stock-take ("set") says 0; an untracked part only
+ * gets the location as a home.
+ */
+async function bookUncounted(
+  tx: Tx,
+  row: {
+    partId: string;
+    tracking: Tracking;
+    mode: StockImportMode;
+    locationId: string | null;
+    quantity: number;
+    codes: Map<string, string>;
+    userId: string;
+    note?: string;
+  },
+) {
+  if (row.tracking === "none") {
+    if (row.locationId) await applyDelta(tx, row.partId, row.locationId, 0);
+    return;
+  }
+  // Adding 0 changes nothing, but records a new location as a home.
+  if (row.quantity === 0 && row.mode === "add") {
+    if (row.locationId) await applyDelta(tx, row.partId, row.locationId, 0);
+    return;
+  }
+  if (row.quantity === 0 && row.locationId === null) return;
+  const current = await tx.query.stock.findFirst({
+    where: stockAt(row.partId, row.locationId),
+    columns: { quantity: true },
+  });
+  const before = current?.quantity ?? 0;
+  const level = convertStock("exact", row.tracking, row.quantity, null);
+  await applyDelta(tx, row.partId, row.locationId, level - before);
+  if (level === before) return;
+  await recordMovement(tx, {
+    partId: row.partId,
+    kind: "level",
+    quantity: level,
+    locationId: row.locationId,
+    codes: row.codes,
+    note: row.note ?? "CSV import",
+    userId: row.userId,
+  });
 }
 
 // Category ids by lower-cased name, creating the ones that don't exist yet.

@@ -8,7 +8,7 @@
 // Every result carries app URLs (from BETTER_AUTH_URL, never the request) so
 // the model can link the user to what it found or changed.
 
-import { and, asc, count, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, asc, count, eq, gt, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { bomItems, boms, categories, files, parts, stock } from "@/db/schema";
 import { appUrl } from "@/lib/app-url";
@@ -20,7 +20,15 @@ import { listParts, stockLocationsByPart } from "@/lib/part-queries";
 import { createPart, changeStock, deletePart, moveStock, updatePart } from "@/lib/part-mutations";
 import { ensureCategories, runPartImport } from "@/lib/part-import";
 import { guessPartMapping, PART_CSV_FIELDS, readPartCsv } from "@/lib/part-csv";
-import { buildableUnits, isLowStock, requirements } from "@/lib/stock";
+import {
+  buildableUnits,
+  isLowStock,
+  levelLabel,
+  requirements,
+  totalStock,
+  TRACKING_MODES,
+  type Tracking,
+} from "@/lib/stock";
 import {
   InvalidParamsError,
   optionalBoolean,
@@ -49,7 +57,8 @@ const INSTRUCTIONS_COMMON = `This server is a workshop parts inventory: parts (w
 
 - Locations are addressed by code, e.g. "A/1/IV" (shelf A, box 1, bin IV). list_locations lists them.
 - Stock that isn't put away yet sits in a part's "unsorted" pile; stock tools take "unsorted" as a location. Putting it away is a move_stock from "unsorted".
-- Quantities are whole numbers in the part's unit ("pcs", "m", "g").`;
+- Quantities are whole numbers in the part's unit ("pcs", "m", "g").
+- Each part has a stock tracking mode. "exact" parts are counted. "level" parts (bulk screws, nuts…) only record a level per location — "Plenty", "Low" or "Empty" — and "binary" ones "In stock" / "Out of stock"; their stock shows as that label, and builds don't take them out of stock. "none" parts only record where they live. Set levels with adjust_stock mode "level".`;
 
 const INSTRUCTIONS_READ_ONLY = `
 - Access is read-only on this instance: you can look things up, but the user makes changes in the app (part pages link from every result's url).`;
@@ -116,7 +125,10 @@ async function partDetail(id: string, { movements = 10 } = {}) {
     movements > 0 ? recentMovements({ partId: id, limit: movements }) : Promise.resolve([]),
   ]);
   const byLocation = new Map(locations.map((l) => [l.id, l]));
-  const total = stockRows.reduce((sum, s) => sum + s.quantity, 0);
+  const tracking = part.tracking;
+  const total = totalStock(tracking, stockRows.map((s) => s.quantity));
+  const show = (s: { quantity: number }) =>
+    tracking === "exact" ? { quantity: s.quantity } : tracking === "none" ? {} : { level: levelLabel(tracking, s.quantity) };
   return {
     id: part.id,
     url: partUrl(part.id),
@@ -129,19 +141,20 @@ async function partDetail(id: string, { movements = 10 } = {}) {
     notes: part.notes,
     attributes: part.attributes,
     orderUrls: part.orderUrls,
-    totalStock: total,
+    tracking,
+    totalStock: stockValue(tracking, total),
     minStock: part.minStock,
-    lowStock: isLowStock(total, part.minStock),
+    lowStock: isLowStock(total, part.minStock, tracking),
     // Rows at 0 are kept: they remember where the part lives when it runs out.
     // An emptied unsorted pile is left out.
     stock: [
       ...stockRows
         .filter((s) => s.locationId === null && s.quantity > 0)
-        .map((s) => ({ location: UNSORTED_REF, path: "Not put away yet", quantity: s.quantity })),
+        .map((s) => ({ location: UNSORTED_REF, path: "Not put away yet", ...show(s) })),
       ...stockRows
         .map((s) => ({ ...s, location: s.locationId ? byLocation.get(s.locationId) : undefined }))
         .filter((s) => s.location)
-        .map((s) => ({ location: s.location!.code, path: s.location!.path, quantity: s.quantity }))
+        .map((s) => ({ location: s.location!.code, path: s.location!.path, ...show(s) }))
         .sort((a, b) => a.location.localeCompare(b.location, undefined, { numeric: true })),
     ],
     usedInBoms: usedIn.map((b) => ({ ...b, url: bomUrl(b.bomId) })),
@@ -191,10 +204,16 @@ const PART_FIELD_PROPERTIES = {
     description: "Category name; created if it doesn't exist yet (list_categories shows the existing ones).",
   },
   unit: { type: "string", description: 'Unit stock is counted in: "pcs" (default), "m", "g", …' },
+  tracking: {
+    type: "string",
+    enum: [...TRACKING_MODES],
+    description:
+      'How stock is kept: "exact" counts (default), "level" (plenty/low/empty — bulk parts not worth counting), "binary" (in stock/out), "none" (only where it lives). Switching an existing part converts its stock; levels → exact starts every location at 0.',
+  },
   minStock: {
     type: ["integer", "null"],
     minimum: 0,
-    description: "Low-stock threshold across all locations; null = not tracked.",
+    description: "Low-stock threshold across all locations, for exact parts; null = not tracked. Level/binary parts are low when no location is Plenty / In stock.",
   },
   orderUrls: {
     type: "array",
@@ -203,6 +222,19 @@ const PART_FIELD_PROPERTIES = {
   },
   notes: { type: "string", description: "Markdown." },
 };
+
+function readTracking(args: Record<string, unknown>): Tracking | undefined {
+  return args.tracking === undefined || args.tracking === null
+    ? undefined
+    : requireEnum(args, "tracking", TRACKING_MODES);
+}
+
+/** A stock value for the model: a count, a level label, or null (untracked). */
+function stockValue(tracking: Tracking, quantity: number): number | string | null {
+  if (tracking === "exact") return quantity;
+  if (tracking === "none") return null;
+  return levelLabel(tracking, quantity);
+}
 
 /** Reads minStock as given (number, numeric string, or null to clear). */
 function readMinStock(args: Record<string, unknown>): number | null | undefined {
@@ -294,9 +326,10 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             manufacturer: p.manufacturer,
             category: p.category,
             unit: p.unit,
-            totalStock: p.total,
+            tracking: p.tracking,
+            totalStock: stockValue(p.tracking, p.total),
             minStock: p.minStock,
-            lowStock: isLowStock(p.total, p.minStock),
+            lowStock: isLowStock(p.total, p.minStock, p.tracking),
             locations: (where.get(p.id) ?? [])
               .map((id) => (id ? codeById.get(id) : UNSORTED_REF))
               .filter(Boolean),
@@ -367,10 +400,24 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
           : new Set([location.id]);
         const inside = locations.filter((l) => ids.has(l.id));
         const rows = await db
-          .select({ partId: parts.id, name: parts.name, mpn: parts.mpn, unit: parts.unit, locationId: stock.locationId, quantity: stock.quantity })
+          .select({
+            partId: parts.id,
+            name: parts.name,
+            mpn: parts.mpn,
+            unit: parts.unit,
+            tracking: parts.tracking,
+            locationId: stock.locationId,
+            quantity: stock.quantity,
+          })
           .from(stock)
           .innerJoin(parts, eq(parts.id, stock.partId))
-          .where(and(inArray(stock.locationId, inside.map((l) => l.id)), gt(stock.quantity, 0)))
+          .where(
+            and(
+              inArray(stock.locationId, inside.map((l) => l.id)),
+              // Untracked parts hold nothing but still live here.
+              or(gt(stock.quantity, 0), eq(parts.tracking, "none")),
+            ),
+          )
           .orderBy(asc(parts.name));
         const codeById = new Map(inside.map((l) => [l.id, l.code]));
         return {
@@ -384,7 +431,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             name: r.name,
             mpn: r.mpn,
             location: codeById.get(r.locationId!),
-            quantity: r.quantity,
+            quantity: stockValue(r.tracking, r.quantity),
             unit: r.unit,
           })),
         };
@@ -460,7 +507,8 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
             perUnit: l.perUnit,
             reference: l.reference,
             notes: l.notes,
-            inStock: l.inStock,
+            tracking: l.tracking,
+            inStock: stockValue(l.tracking, l.inStock),
             required: needs[i].required,
             shortfall: needs[i].shortfall,
           })),
@@ -480,7 +528,8 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
           ...PART_FIELD_PROPERTIES,
           attributes: ATTRIBUTES_SCHEMA,
           location: { type: "string", description: 'Location code for the initial stock; omit or "unsorted" if it isn\'t put away yet.' },
-          quantity: { type: "integer", minimum: 0, description: "Initial stock at `location`." },
+          quantity: { type: "integer", minimum: 0, description: "Initial stock at `location` (exact parts)." },
+          level: { type: "string", description: 'Initial level at `location` for level/binary parts: "Plenty", "Low", "Empty" / "In stock", "Out of stock".' },
         },
         required: ["name"],
       },
@@ -490,15 +539,23 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
         const quantity = args.quantity;
         const category = readCategory(args);
         const minStock = readMinStock(args);
+        const tracking = readTracking(args) ?? "exact";
+        const level = optionalString(args, "level");
         const { id } = check(
           await createPart(userId, {
             ...readTextFields(args),
+            tracking,
             categoryId: category ? await categoryIdFor(category) : "",
             minStock: minStock == null ? "" : String(minStock),
             orderUrls: optionalStringArray(args, "orderUrls"),
             attributes: readAttributes(args.attributes),
             initialLocationId: location ? resolveStockPlace(await loadLocationOptions(), location) : null,
-            initialQuantity: quantity === undefined || quantity === null ? "" : String(quantity),
+            initialQuantity:
+              tracking === "exact"
+                ? quantity === undefined || quantity === null
+                  ? ""
+                  : String(quantity)
+                : (level ?? ""),
           }),
         );
         return { created: true, part: await partDetail(id!, { movements: 0 }) };
@@ -527,6 +584,7 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
         const patch: PartPatch = {
           ...readTextFields(args),
           minStock: readMinStock(args),
+          tracking: readTracking(args),
           ...(args.orderUrls !== undefined ? { orderUrls: optionalStringArray(args, "orderUrls") } : {}),
           attributes: readAttributes(args.attributes),
           removeAttributes: optionalStringArray(args, "removeAttributes"),
@@ -540,29 +598,31 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       name: "adjust_stock",
       title: "Adjust stock",
       description:
-        'Changes how many of a part sit in one location: "add" (received, restocked), "remove" (used, lost) by `quantity`, or "set" the count after a stock-take. Logged in the part\'s history with your note. A part can be stocked in a new location simply by adding to it.',
+        'Changes a part\'s stock in one location. Exact parts: "add" (received, restocked), "remove" (used, lost) by `quantity`, or "set" the count after a stock-take. Level/binary parts: "level" with `level` ("Plenty", "Low", "Empty" / "In stock", "Out of stock"). Untracked parts: "place" records the location as one it lives in. Logged in the part\'s history with your note. A part can be stocked in a new location simply by adding to it.',
       inputSchema: {
         type: "object",
         properties: {
           partId: { type: "string", description: "Part id from search_parts." },
           location: { type: "string", description: 'Location code, e.g. "A/1", or "unsorted".' },
-          mode: { type: "string", enum: ["add", "remove", "set"] },
-          quantity: { type: "integer", minimum: 0 },
+          mode: { type: "string", enum: ["add", "remove", "set", "level", "place"] },
+          quantity: { type: "integer", minimum: 0, description: "For add, remove and set." },
+          level: { type: "string", description: 'For mode "level".' },
           note: { type: "string", description: "Why, shown in the history." },
         },
-        required: ["partId", "location", "mode", "quantity"],
+        required: ["partId", "location", "mode"],
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       run: async (args) => {
         const partId = requireUuid(args, "partId", PART_ID_HINT);
         await requirePart(partId);
         const locationId = resolveStockPlace(await loadLocationOptions(), requireString(args, "location"));
+        const mode = requireEnum(args, "mode", ["add", "remove", "set", "level", "place"] as const);
         check(
           await changeStock(userId, {
             partId,
             locationId,
-            mode: requireEnum(args, "mode", ["add", "remove", "set"] as const),
-            quantity: String(args.quantity ?? ""),
+            mode,
+            quantity: mode === "level" ? (optionalString(args, "level") ?? "") : String(args.quantity ?? ""),
             note: optionalString(args, "note"),
           }),
         );
@@ -573,17 +633,17 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       name: "move_stock",
       title: "Move stock",
       description:
-        'Moves some of a part\'s stock from one location to another; from "unsorted" puts unsorted stock away. Logged in the part\'s history.',
+        'Moves some of a part\'s stock from one location to another; from "unsorted" puts unsorted stock away. For level, binary and untracked parts everything there moves and `quantity` is ignored. Logged in the part\'s history.',
       inputSchema: {
         type: "object",
         properties: {
           partId: { type: "string", description: "Part id from search_parts." },
           from: { type: "string", description: 'Location code to take from, or "unsorted".' },
           to: { type: "string", description: 'Location code to put into, or "unsorted".' },
-          quantity: { type: "integer", minimum: 1 },
+          quantity: { type: "integer", minimum: 1, description: "Required for exact parts." },
           note: { type: "string" },
         },
-        required: ["partId", "from", "to", "quantity"],
+        required: ["partId", "from", "to"],
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
       run: async (args) => {

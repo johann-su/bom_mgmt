@@ -63,6 +63,7 @@ const STORED: StoredPart = {
   manufacturer: "TI",
   mpn: "NE555P",
   unit: "pcs",
+  tracking: "exact",
   minStock: 5,
   orderUrls: ["https://www.lcsc.com/product-detail/C46749.html"],
   icon: "component/packages/dip-8",
@@ -86,6 +87,18 @@ test("partFormValues changes only the patched fields", () => {
   assert.deepEqual(parsed.attributes, STORED.attributes);
   // update_part doesn't know about the thumbnail icon; it must survive.
   assert.equal(parsed.icon, STORED.icon);
+});
+
+// Leaving tracking out must not turn a level-tracked part back into a counted
+// one — that would reset its stock to 0.
+test("partFormValues keeps the tracking mode unless patched", () => {
+  const level = { ...STORED, tracking: "level" as const };
+  const kept = parsePartInput(partFormValues(level, { notes: "x" }));
+  assert.ok(!("error" in kept));
+  assert.equal(kept.tracking, "level");
+  const switched = parsePartInput(partFormValues(level, { tracking: "binary" }));
+  assert.ok(!("error" in switched));
+  assert.equal(switched.tracking, "binary");
 });
 
 // null is how the model says "clear it" — distinct from leaving it out.

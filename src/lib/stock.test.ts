@@ -2,7 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   buildableUnits,
+  convertStock,
+  deductsOnBuild,
+  formatStock,
   isLowStock,
+  levelLabel,
+  parseLevel,
+  STOCK_LEVELS,
+  totalStock,
   parseQuantity,
   fromPickerValue,
   planConsumption,
@@ -81,4 +88,78 @@ test("low stock means strictly below the minimum; no minimum never alerts", () =
   assert.equal(isLowStock(9, 10), true);
   assert.equal(isLowStock(10, 10), false);
   assert.equal(isLowStock(0, null), false);
+});
+
+// --- Tracking modes: bulk parts (screws, nuts) are kept as levels, not counts.
+
+const { empty, low, plenty } = STOCK_LEVELS;
+
+test("a part's total sums exact counts but takes the best level for level/binary parts", () => {
+  assert.equal(totalStock("exact", [3, 4]), 7);
+  // One full bin means it's on hand, however empty the others are.
+  assert.equal(totalStock("level", [low, plenty, empty]), plenty);
+  assert.equal(totalStock("binary", []), empty, "no locations = out of stock");
+  assert.equal(totalStock("none", [5]), 0, "untracked parts hold no amount");
+});
+
+test("level/binary parts are low until some location is plenty; untracked never alert", () => {
+  assert.equal(isLowStock(low, null, "level"), true);
+  assert.equal(isLowStock(empty, null, "binary"), true);
+  assert.equal(isLowStock(plenty, null, "level"), false);
+  // The minimum is a count, so it only applies to exact parts.
+  assert.equal(isLowStock(plenty, 50, "level"), false);
+  assert.equal(isLowStock(0, 10, "none"), false);
+});
+
+test("builds only deduct exact parts; level parts limit a build only when empty", () => {
+  assert.equal(deductsOnBuild("exact"), true);
+  assert.equal(deductsOnBuild("level"), false);
+  const lines = [
+    { partId: "chip", perUnit: 1, inStock: 3 },
+    { partId: "screw", perUnit: 8, inStock: low, tracking: "level" as const },
+    { partId: "jig", perUnit: 1, inStock: 0, tracking: "none" as const },
+  ];
+  assert.equal(buildableUnits(lines), 3, "the counted chip decides, the low screws don't");
+  const [, screws, jig] = requirements(lines, 10);
+  assert.equal(screws.shortfall, 0);
+  assert.equal(jig.shortfall, 0, "untracked parts are never short");
+});
+
+test("an empty level part blocks a build and lands on the shopping list in full", () => {
+  const lines = [{ partId: "nut", perUnit: 4, inStock: empty, tracking: "binary" as const }];
+  assert.equal(buildableUnits(lines), 0);
+  assert.equal(requirements(lines, 2)[0].shortfall, 8);
+});
+
+test("a BOM of only uncounted parts reports no stock limit (null), not infinity", () => {
+  assert.equal(buildableUnits([{ partId: "w", perUnit: 1, inStock: plenty, tracking: "level" }]), null);
+});
+
+test("switching to a level keeps what the count said; switching to exact starts at 0", () => {
+  assert.equal(convertStock("exact", "level", 0, null), empty);
+  assert.equal(convertStock("exact", "level", 3, 10), low, "below the minimum → low");
+  assert.equal(convertStock("exact", "level", 3, null), plenty);
+  assert.equal(convertStock("exact", "binary", 3, 10), plenty, "binary has no low");
+  assert.equal(convertStock("level", "binary", low, null), plenty, "a low bin is still in stock");
+  assert.equal(convertStock("binary", "level", plenty, null), plenty);
+  // A level says nothing about how many, so the bins have to be counted.
+  assert.equal(convertStock("level", "exact", plenty, null), 0);
+  assert.equal(convertStock("exact", "none", 40, null), 0);
+  assert.equal(convertStock("none", "level", 0, null), empty);
+});
+
+test("levels parse by value or label, only from the part's own choices", () => {
+  assert.equal(parseLevel("level", "Low"), low);
+  assert.equal(parseLevel("level", "2"), plenty);
+  assert.equal(parseLevel("binary", "in stock"), plenty);
+  assert.equal(parseLevel("binary", "low"), null, "binary parts have no low");
+  assert.equal(parseLevel("exact", "0"), null);
+});
+
+test("stock is shown as a count, a level label, or a dash", () => {
+  assert.equal(formatStock("exact", 12, "pcs"), "12 pcs");
+  assert.equal(formatStock("level", low, "pcs"), "Low");
+  assert.equal(formatStock("binary", plenty, "pcs"), "In stock");
+  assert.equal(levelLabel("binary", low), "In stock", "a level carried over from level mode");
+  assert.equal(formatStock("none", 0, "pcs"), "—");
 });

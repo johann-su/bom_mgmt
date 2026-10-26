@@ -59,7 +59,10 @@ export default async function BomsPage() {
                     {bom.lineCount} line{bom.lineCount === 1 ? "" : "s"}
                   </Badge>
                   {bom.lineCount > 0 &&
-                    (bom.buildable > 0 ? (
+                    (bom.buildable === null ? (
+                      // Nothing on it is counted, so stock sets no limit.
+                      <Badge>Can build</Badge>
+                    ) : bom.buildable > 0 ? (
                       <Badge>Can build {bom.buildable}</Badge>
                     ) : (
                       <Badge variant="destructive">Missing parts</Badge>

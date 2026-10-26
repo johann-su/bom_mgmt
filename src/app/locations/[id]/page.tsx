@@ -13,7 +13,7 @@ import { partCountsByLocation } from "@/lib/location-stats";
 import { siblingCycle, siblingLabels } from "@/lib/location-siblings";
 import { loadPartOptions } from "@/lib/part-options";
 import { firstImages } from "@/lib/part-images";
-import { formatQuantity } from "@/lib/format";
+import { formatStock } from "@/lib/stock";
 import { appUrl } from "@/lib/app-url";
 import { loadTemplateOptions } from "@/lib/label-templates";
 import { getCodeSeparator } from "@/lib/settings";
@@ -99,6 +99,7 @@ export default async function LocationPage({ params }: Params) {
       mpn: parts.mpn,
       icon: parts.icon,
       unit: parts.unit,
+      tracking: parts.tracking,
       quantity: stock.quantity,
     })
     .from(stock)
@@ -260,15 +261,15 @@ export default async function LocationPage({ params }: Params) {
                         </Link>
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatQuantity(c.quantity, c.unit)}
+                        {formatStock(c.tracking, c.quantity, c.unit)}
                       </TableCell>
                       <TableCell>
                         <StockDialog
-                          part={{ id: c.partId, name: c.name, unit: c.unit }}
+                          part={{ id: c.partId, name: c.name, unit: c.unit, tracking: c.tracking }}
                           locationId={id}
                           locations={options}
                           stockByLocation={{ [id]: c.quantity }}
-                          initialMode="remove"
+                          initialMode={c.tracking === "none" ? "move" : "remove"}
                           trigger={
                             <Button variant="ghost" size="icon" aria-label="Change stock">
                               <ArrowRightLeft className="size-4" />

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CheckCircle2, Hammer, Pencil, Plus, Trash2, TriangleAlert } from "lucide-react";
 import type { BomLineRow } from "@/lib/bom-queries";
-import { buildableUnits, requirements } from "@/lib/stock";
+import { buildableUnits, deductsOnBuild, formatStock, isLowStock, requirements } from "@/lib/stock";
 import { formatDateTime, formatQuantity } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,7 @@ export function BomEditor({
   const rows = requirements(lines, plannedUnits).map((r, i) => ({ ...lines[i], ...r }));
   const short = rows.filter((r) => r.shortfall > 0);
   const buildable = buildableUnits(lines);
+  const deducted = rows.filter((r) => deductsOnBuild(r.tracking));
 
   function run(action: () => Promise<{ error?: string }>, success?: string, after?: () => void) {
     startTransition(async () => {
@@ -81,9 +82,11 @@ export function BomEditor({
             <p className="text-sm text-muted-foreground">
               {lines.length === 0
                 ? "Add parts below or import a CSV."
-                : buildable > 0
-                  ? `Current stock covers ${buildable} unit${buildable === 1 ? "" : "s"}.`
-                  : "Current stock doesn't cover a single unit."}
+                : buildable === null
+                  ? "No line is counted, so stock sets no limit."
+                  : buildable > 0
+                    ? `Current stock covers ${buildable} unit${buildable === 1 ? "" : "s"}.`
+                    : "Current stock doesn't cover a single unit."}
             </p>
           </div>
           <div className="flex items-end gap-2">
@@ -121,53 +124,59 @@ export function BomEditor({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell>
-                      <Link href={`/parts/${row.partId}`} className="font-medium hover:underline">
-                        {row.name}
-                      </Link>
-                      {row.mpn && <div className="font-mono text-xs text-muted-foreground">{row.mpn}</div>}
-                      {row.notes && <div className="text-xs text-muted-foreground">{row.notes}</div>}
-                    </TableCell>
-                    <TableCell className="hidden max-w-48 truncate md:table-cell text-muted-foreground">
-                      {row.reference}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{row.perUnit}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.required}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {row.shortfall > 0 ? (
-                          <TriangleAlert className="size-4 text-destructive" />
-                        ) : (
-                          <CheckCircle2 className="size-4 text-primary" />
+                {rows.map((row) => {
+                  // A level part that is merely low still builds, but warns.
+                  const warn =
+                    row.shortfall > 0 ||
+                    (!deductsOnBuild(row.tracking) && isLowStock(row.inStock, null, row.tracking));
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell>
+                        <Link href={`/parts/${row.partId}`} className="font-medium hover:underline">
+                          {row.name}
+                        </Link>
+                        {row.mpn && <div className="font-mono text-xs text-muted-foreground">{row.mpn}</div>}
+                        {row.notes && <div className="text-xs text-muted-foreground">{row.notes}</div>}
+                      </TableCell>
+                      <TableCell className="hidden max-w-48 truncate md:table-cell text-muted-foreground">
+                        {row.reference}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{row.perUnit}</TableCell>
+                      <TableCell className="text-right tabular-nums">{row.required}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {warn ? (
+                            <TriangleAlert className="size-4 text-destructive" />
+                          ) : (
+                            <CheckCircle2 className="size-4 text-primary" />
+                          )}
+                          <span className={cn(warn && "text-destructive font-medium")}>
+                            {formatStock(row.tracking, row.inStock, row.unit)}
+                          </span>
+                        </div>
+                        {row.shortfall > 0 && (
+                          <div className="text-xs text-destructive">short {row.shortfall}</div>
                         )}
-                        <span className={cn(row.shortfall > 0 && "text-destructive font-medium")}>
-                          {formatQuantity(row.inStock, row.unit)}
-                        </span>
-                      </div>
-                      {row.shortfall > 0 && (
-                        <div className="text-xs text-destructive">short {row.shortfall}</div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end">
-                        <Button variant="ghost" size="icon" aria-label="Edit line" onClick={() => setEditing(row)}>
-                          <Pencil className="size-4" />
-                        </Button>
-                        <ConfirmButton
-                          title={`Remove ${row.name} from this BOM?`}
-                          confirmLabel="Remove"
-                          onConfirm={() => run(() => removeBomItem({ id: row.id }), "Line removed")}
-                        >
-                          <Button variant="ghost" size="icon" aria-label="Remove line">
-                            <Trash2 className="size-4" />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end">
+                          <Button variant="ghost" size="icon" aria-label="Edit line" onClick={() => setEditing(row)}>
+                            <Pencil className="size-4" />
                           </Button>
-                        </ConfirmButton>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                          <ConfirmButton
+                            title={`Remove ${row.name} from this BOM?`}
+                            confirmLabel="Remove"
+                            onConfirm={() => run(() => removeBomItem({ id: row.id }), "Line removed")}
+                          >
+                            <Button variant="ghost" size="icon" aria-label="Remove line">
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </ConfirmButton>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}
@@ -242,15 +251,20 @@ export function BomEditor({
               Build {plannedUnits} unit{plannedUnits === 1 ? "" : "s"}?
             </DialogTitle>
             <DialogDescription>
-              This takes {rows.length} part{rows.length === 1 ? "" : "s"} out of stock, drawing from the
-              emptiest bins first, and logs every draw.
+              This takes {deducted.length} counted part{deducted.length === 1 ? "" : "s"} out of stock,
+              drawing from the emptiest bins first, and logs every draw.
+              {deducted.length < rows.length && " Parts tracked by level aren't counted — update their level if a bin ran low."}
             </DialogDescription>
           </DialogHeader>
           <ul className="grid max-h-64 gap-1 overflow-y-auto text-sm">
             {rows.map((r) => (
               <li key={r.id} className="flex justify-between gap-4">
                 <span className="truncate">{r.name}</span>
-                <span className="tabular-nums">−{formatQuantity(r.required, r.unit)}</span>
+                {deductsOnBuild(r.tracking) ? (
+                  <span className="tabular-nums">−{formatQuantity(r.required, r.unit)}</span>
+                ) : (
+                  <span className="text-muted-foreground">not counted</span>
+                )}
               </li>
             ))}
           </ul>
