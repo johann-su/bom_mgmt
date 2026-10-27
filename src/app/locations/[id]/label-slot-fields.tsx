@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { EyeOff, Library, RotateCcw, Upload } from "lucide-react";
 import type { SlotValue, LabelSlots, TemplateSlot } from "@/lib/label-slots";
+import type { LabelContents } from "@/lib/label-contents";
 import { importSvg, type ImportedSvg } from "@/lib/svg-sanitize";
 import { setLocationLabelSlot } from "@/app/locations/actions";
 import { Button } from "@/components/ui/button";
@@ -14,16 +15,19 @@ import { IconPickerDialog } from "@/components/icon-picker-dialog";
 /**
  * This location's own content for the slots its label template offers: a
  * text field per text slot, and icon/upload/hide per graphic slot. Each
- * change saves straight away; "reset" goes back to the template's default.
+ * change saves straight away; "reset" goes back to the template's default —
+ * or, for a graphic bound to an attribute, to what the contents picture.
  */
 export function LabelSlotFields({
   locationId,
   slots,
   values,
+  contents,
 }: {
   locationId: string;
   slots: TemplateSlot[];
   values: LabelSlots;
+  contents: LabelContents;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -62,6 +66,9 @@ export function LabelSlotFields({
         const value = values[slot.name];
         // A value of the wrong kind is ignored when printing, so it reads as the default here too.
         const own = value && (value.kind === "none" || value.kind === slot.kind) ? value : undefined;
+        // A graphic bound to an attribute defaults to what the contents picture, else nothing.
+        const bound = slot.kind === "graphic" ? slot.element.attr : undefined;
+        const fromContents = bound ? contents.icons[bound.trim().toLowerCase()] : undefined;
         return (
           <div key={slot.name} className="flex flex-wrap items-center gap-2">
             <span className="w-24 shrink-0 truncate font-mono text-xs text-muted-foreground" title={slot.name}>
@@ -86,9 +93,19 @@ export function LabelSlotFields({
               />
             ) : (
               <>
-                <GraphicThumb value={own?.kind === "graphic" ? own : slot.element} />
+                {own?.kind === "graphic" || !bound || fromContents ? (
+                  <GraphicThumb value={own?.kind === "graphic" ? own : (fromContents ?? slot.element)} />
+                ) : (
+                  <span className="size-8 shrink-0 rounded-sm ring-1 ring-border ring-dashed" />
+                )}
                 <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-                  {own?.kind === "graphic" ? (own.name ?? "Own graphic") : "Template default"}
+                  {own?.kind === "graphic"
+                    ? (own.name ?? "Own graphic")
+                    : !bound
+                      ? "Template default"
+                      : fromContents
+                        ? `${bound}: ${fromContents.name}`
+                        : `No ${bound.toLowerCase()} in the contents`}
                 </span>
                 <Button size="sm" variant="outline" disabled={pending} onClick={() => setPickingFor(slot.name)}>
                   <Library className="size-4" /> Icon…

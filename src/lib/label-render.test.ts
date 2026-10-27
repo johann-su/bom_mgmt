@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toSVG } from "bwip-js";
 import {
+  fitLines,
   fittedFontSize,
   labelsCsv,
   renderCode,
@@ -11,6 +12,7 @@ import {
 import {
   DEFAULT_TEMPLATES,
   locationVariables,
+  parseTemplate,
   type CodeElement,
   type LabelTemplate,
   type TextElement,
@@ -190,4 +192,31 @@ test("labelsCsv exports one row per location for external mail-merge tools", () 
   assert.ok(header.startsWith("code,label,type,name"));
   assert.ok(row.startsWith("A/IV,IV,Bin,Nuts & <bolts>"));
   assert.equal(labelsCsv([]), "");
+});
+
+test("shrink-to-fit breaks a long text at spaces when that allows a larger font", () => {
+  // The bin label's 6 × 4.5 mm name box: on one line "JST XH crimp F" would print at ~2 pt.
+  const box = text({ fit: true, w: 6, h: 4.5, fontSize: 6 });
+  const lines = fitLines(box, "JST XH crimp F");
+  assert.deepEqual(lines, ["JST XH", "crimp F"]);
+  assert.ok(fittedFontSize(box, lines) > 1.5 * fittedFontSize(box, ["JST XH crimp F"]));
+  // A short text that already fits stays on one line; so does one the user broke by hand.
+  assert.deepEqual(fitLines(box, "M3×8"), ["M3×8"]);
+  assert.deepEqual(fitLines(box, "JST XH\ncrimp F crimp"), ["JST XH", "crimp F crimp"]);
+  // Without "fit" nothing is rewrapped.
+  assert.deepEqual(fitLines(text({ w: 6, h: 4.5 }), "JST XH crimp F"), ["JST XH crimp F"]);
+});
+
+test("vertical alignment puts the lines at the top, bottom or (by default) middle of the box", () => {
+  const y = (valign?: "top" | "bottom") => {
+    const svg = renderLabelSvg(
+      { width: 20, height: 20, layout: { kind: "single" }, elements: [text({ y: 0, h: 20, fontSize: 12, text: "A", valign })] },
+      {},
+    ).body;
+    return Number(/<tspan[^>]* y="([\d.]+)"/.exec(svg)![1]);
+  };
+  assert.ok(y("top") < y() && y() < y("bottom"));
+  // An older template without the field keeps rendering centred.
+  const parsed = parseTemplate({ width: 20, height: 20, elements: [text({ valign: "sideways" as never })] });
+  assert.ok(!("error" in parsed) && !("valign" in parsed.elements[0]));
 });

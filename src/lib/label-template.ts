@@ -60,6 +60,8 @@ export type TextElement = Box & Partial<BoxStyle> & Slotted & {
   bold: boolean;
   mono: boolean;
   align: "start" | "middle" | "end";
+  // Where the lines sit in the box's height; absent → centred.
+  valign?: "top" | "bottom";
   // Shrink the font so the longest line fits the box width.
   fit: boolean;
 };
@@ -78,6 +80,11 @@ export type GraphicElement = Box & Slotted & {
   stretch: boolean;
   // Original file name, for the element list.
   name?: string;
+  // Pictures this attribute of what the location holds ("Drive", "Head"):
+  // the drawing is replaced by the contents' icon for it, and left off when
+  // they have none (src/lib/label-contents.ts). `markup` is then only the
+  // stand-in shown while designing.
+  attr?: string;
 };
 
 export type LabelElement = TextElement | CodeElement | FrameElement | GraphicElement;
@@ -285,6 +292,11 @@ function slotOf(e: Record<string, unknown>): { slot?: string } {
   return typeof e.slot === "string" && SLOT_NAME_RE.test(e.slot) ? { slot: e.slot } : {};
 }
 
+function attrOf(e: Record<string, unknown>): { attr?: string } {
+  const attr = typeof e.attr === "string" ? e.attr.trim().slice(0, 60) : "";
+  return attr ? { attr } : {};
+}
+
 /**
  * Checks untrusted JSON (a form submission, a stored row) and returns a clean
  * template, dropping unknown fields. Elements may hang off the label edge —
@@ -322,11 +334,13 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
       const fontSize = num(e.fontSize, 1, 400);
       if (fontSize === null) return { error: `Element ${i + 1}: font size must be 1–400 pt` };
       const align = e.align === "middle" || e.align === "end" ? e.align : "start";
+      const valign = e.valign === "top" || e.valign === "bottom" ? e.valign : undefined;
       const textColor = color(e.color);
       elements.push({
         ...slotOf(e),
         ...pos, kind: "text", text, fontSize, align,
         bold: e.bold === true, mono: e.mono === true, fit: e.fit === true,
+        ...(valign ? { valign } : {}),
         ...(textColor ? { color: textColor } : {}),
         ...boxStyle(e),
       });
@@ -350,6 +364,7 @@ export function parseTemplate(input: unknown): LabelTemplate | { error: string }
         ...slotOf(e),
         ...pos, kind: "graphic", markup, viewBox: vb as GraphicElement["viewBox"], stretch: e.stretch === true,
         ...(name ? { name } : {}),
+        ...attrOf(e),
       });
     } else {
       return { error: `Element ${i + 1} has an unknown kind` };

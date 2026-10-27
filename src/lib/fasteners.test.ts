@@ -10,6 +10,7 @@ import {
   parseLength,
 } from "@/lib/fasteners";
 import type { GeneratedPart } from "@/lib/generic-parts";
+import { isIconAttribute } from "@/lib/part-attributes";
 
 function ok(result: GeneratedPart | { error: string }): GeneratedPart {
   if ("error" in result) assert.fail(result.error);
@@ -116,4 +117,43 @@ test("Torx, Phillips, Pozidriv and slotted heads are their own standards with th
   assert.equal(attr(slotted, "Drive"), "Slotted 0.8 mm");
   // 12.9 black oxide isn't made with a slot or cross recess.
   assert.ok("error" in generateFastener({ type: "iso7046h", size: "M3", length: 8, material: "black" }));
+});
+
+test("fasteners picture themselves in icon-1 (upright), then their drive in icon-2, for bin labels", () => {
+  const csk = ok(generateFastener({ type: "iso10642", size: "M3", length: 10, material: "black" }));
+  assert.equal(attr(csk, "Head"), "Countersunk");
+  // Upright, not the sideways view the thumbnail uses.
+  assert.equal(attr(csk, "icon-1"), "screw/heads/machine/countersunk");
+  assert.equal(attr(csk, "icon-2"), "screw/drives/hex");
+  // A nut is just itself: no icon-2, so a label's drive graphic stays blank.
+  const nut = ok(generateFastener({ type: "iso4032", size: "M3", material: "zinc" }));
+  assert.equal(attr(nut, "icon-1"), "screw/hardware/nuts/hex-nut");
+  assert.equal(attr(nut, "icon-2"), undefined);
+});
+
+test("every fastener icon, label pictures included, is in the catalogue", async () => {
+  const { loadIcons } = await import("@/lib/label-icons");
+  const ids = new Set((await loadIcons()).map((i) => i.id));
+  for (const type of FASTENER_TYPES) {
+    for (const id of type.icons) assert.ok(ids.has(id), `${type.id}: ${id}`);
+    const part = generateFastener({
+      type: type.id,
+      size: fastenerSizes(type)[0],
+      material: materialsFor(type)[0].id,
+      length: commonLengths(type, fastenerSizes(type)[0])[0] ?? 10,
+    });
+    if ("error" in part) assert.fail(`${type.id}: ${part.error}`);
+    for (const a of part.attributes.filter((a) => isIconAttribute(a.key))) {
+      assert.ok(ids.has(a.value), `${type.id} ${a.key}: ${a.value}`);
+    }
+  }
+});
+
+test("every fastener has a Short name, so one {{attr:Short name}} label fits screws, nuts and washers", () => {
+  const size = (type: string, length?: number) =>
+    attr(ok(generateFastener({ type, size: "M3", length, material: "a2" })), "Short name");
+  assert.equal(size("iso10642", 8), "M3×8");
+  assert.equal(size("iso4032"), "M3");
+  assert.equal(size("iso7089"), "M3");
+  assert.equal(attr(ok(generateFastener({ type: "heatset", size: "M3", length: 5.7, material: "brass" })), "Short name"), "M3×5.7");
 });

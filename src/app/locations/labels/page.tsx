@@ -13,6 +13,8 @@ import { loadTemplateOptions } from "@/lib/label-templates";
 import { getCodeSeparator } from "@/lib/settings";
 import { locationVariables, templateForType } from "@/lib/label-template";
 import { storedSlots } from "@/lib/label-slots";
+import { NO_CONTENTS } from "@/lib/label-contents";
+import { loadLabelContents } from "@/lib/label-contents-queries";
 import { LabelPrinter, type PrintItem } from "./label-printer";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +31,7 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
   const { root, only, type } = await searchParams;
   const rootId = typeof root === "string" && isUuid(root) ? root : null;
 
-  const [all, details, templates, types, separator] = await Promise.all([
+  const [all, details, templates, types, separator, contentsOf] = await Promise.all([
     loadLocations(),
     db
       .select({ id: locations.id, description: locations.description, labelSlots: locations.labelSlots })
@@ -37,6 +39,7 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
     loadTemplateOptions(),
     loadLocationTypes(),
     getCodeSeparator(),
+    loadLabelContents(),
   ]);
   const byId = new Map(all.map((l) => [l.id, l]));
   if (rootId && !byId.has(rootId)) notFound();
@@ -60,6 +63,7 @@ export default async function PrintLabelsPage({ searchParams }: Props) {
           separator,
         }),
         slots: slotsOf.get(node.id) ?? {},
+        contents: contentsOf.get(node.id) ?? NO_CONTENTS,
       });
       walk(node.children);
     }

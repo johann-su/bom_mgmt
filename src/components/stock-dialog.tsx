@@ -50,13 +50,14 @@ function modeFor(tracking: Tracking, mode: StockMode): StockMode {
 
 // One dialog for every stock change. Fix the part (part page), the location
 // (location page), or both (a row's "change" button); whatever isn't fixed
-// gets a picker. Location values are picker values: UNSORTED_VALUE stands for
+// gets a picker, preselected with `defaultLocationId` if given. Location values are picker values: UNSORTED_VALUE stands for
 // the unsorted pile, and is sent to the actions as null. What the dialog
 // offers follows the part's tracking mode (see modeFor).
 export function StockDialog({
   part,
   partOptions,
   locationId: fixedLocationId,
+  defaultLocationId,
   locations,
   stockByLocation = {},
   modes: requestedModes = ["add", "remove", "set", "move"],
@@ -67,6 +68,9 @@ export function StockDialog({
   // Required when `part` is null.
   partOptions?: (ComboboxOption & { unit: string; tracking: Tracking })[];
   locationId?: string;
+  // Preselects the location picker when the location isn't fixed (e.g. the
+  // part's only location); the user can still pick another.
+  defaultLocationId?: string;
   locations: LocationOption[];
   // Current stock value of the (fixed) part per picker value (location id,
   // or UNSORTED_VALUE).
@@ -79,7 +83,8 @@ export function StockDialog({
   const [open, setOpen] = useState(false);
   const [pickedMode, setMode] = useState<StockMode>(initialMode);
   const [partId, setPartId] = useState<string | null>(part?.id ?? null);
-  const [locationId, setLocationId] = useState<string | null>(fixedLocationId ?? null);
+  // undefined = not picked yet, so the default tracks the latest server data.
+  const [pickedLocationId, setLocationId] = useState<string | null | undefined>(undefined);
   const [toLocationId, setToLocationId] = useState<string | null>(null);
   const [quantity, setQuantity] = useState("");
   const [note, setNote] = useState("");
@@ -101,10 +106,15 @@ export function StockDialog({
   const mode = modes.includes(modeFor(tracking, pickedMode))
     ? modeFor(tracking, pickedMode)
     : modes[0];
+  const locationId =
+    fixedLocationId ??
+    (pickedLocationId === undefined ? (defaultLocationId ?? null) : pickedLocationId);
   const levels = levelChoices(tracking);
   const needsQuantity = mode === "level" || (counted && mode !== "place");
   const current = locationId ? (stockByLocation[locationId] ?? 0) : null;
   const location = locations.find((l) => l.id === locationId);
+  // Where the part already is, listed first in the pickers.
+  const currentPlaces = new Set(Object.keys(stockByLocation));
   const placeLabel =
     locationId === UNSORTED_VALUE
       ? "Unsorted"
@@ -115,7 +125,7 @@ export function StockDialog({
     setNote("");
     setToLocationId(null);
     if (!part) setPartId(null);
-    if (!fixedLocationId) setLocationId(null);
+    setLocationId(undefined);
     setMode(initialMode);
   }
 
@@ -206,6 +216,7 @@ export function StockDialog({
                 locations={locations}
                 value={locationId}
                 onChange={setLocationId}
+                current={currentPlaces}
                 allowUnsorted={tracking !== "none"}
               />
             </div>
@@ -219,6 +230,7 @@ export function StockDialog({
                 value={toLocationId}
                 onChange={setToLocationId}
                 exclude={locationId ? new Set([locationId]) : undefined}
+                current={currentPlaces}
                 allowUnsorted={tracking !== "none"}
               />
             </div>

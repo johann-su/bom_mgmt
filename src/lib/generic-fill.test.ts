@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { genericType } from "@/lib/generic-families";
 import type { GeneratedPart, GenericValues } from "@/lib/generic-parts";
-import { applyGenerated, type GenericFillInput } from "@/lib/generic-fill";
+import { applyGenerated, withMissingAttributes, type GenericFillInput } from "@/lib/generic-fill";
 
 function screw(values: GenericValues): GeneratedPart {
   const part = genericType("fasteners", "socket-cap")!.generate({ drive: "iso4762", size: "M3", material: "a2", length: "8", ...values });
@@ -68,4 +68,24 @@ test("a hand-picked icon is kept; one the wizard set follows the new part", () =
   assert.ok(!("error" in nut));
   assert.equal(applyGenerated(filled(before), before, nut).icon, nut.icon);
   assert.equal(applyGenerated({ ...filled(before), icon: "custom/icon" }, before, nut).icon, "custom/icon");
+});
+
+test("backfill adds only attribute keys the part lacks, never overwriting an edited value", () => {
+  const current = [
+    { key: "Thread", value: "M3" },
+    { key: "drive", value: "Hex 2 mm (edited)" },
+  ];
+  const generated = [
+    { key: "Thread", value: "M3" },
+    { key: "Head", value: "Countersunk" },
+    { key: "Drive", value: "Hex socket 2 mm" },
+  ];
+  // "Head" lands where the wizard puts it (after Thread), not at the end.
+  assert.deepEqual(withMissingAttributes(current, generated), [
+    { key: "Thread", value: "M3" },
+    { key: "Head", value: "Countersunk" },
+    { key: "drive", value: "Hex 2 mm (edited)" },
+  ]);
+  // Nothing new → nothing to write.
+  assert.equal(withMissingAttributes(generated, generated), null);
 });

@@ -27,6 +27,7 @@ import {
   type TextElement,
 } from "@/lib/label-template";
 import { applySlots, type LabelData, type LabelSlots } from "@/lib/label-slots";
+import { applyContents, type LabelContents } from "@/lib/label-contents";
 
 const PT_TO_MM = 25.4 / 72;
 const LINE_HEIGHT = 1.2;
@@ -56,6 +57,42 @@ export function fittedFontSize(el: TextElement, lines: string[]): number {
   return Math.min(size, byWidth, byHeight);
 }
 
+/**
+ * The lines a shrink-to-fit text is drawn in: its single line broken at
+ * spaces into however many lines give the largest font, so "JST XH crimp F"
+ * in a small box becomes "JST XH" / "crimp F" rather than shrinking to an
+ * unreadable size. Ties keep fewer lines. Text with its own line breaks, or
+ * without "fit", is left as written.
+ */
+export function fitLines(el: TextElement, text: string): string[] {
+  const lines = text.split("\n");
+  const words = text.trim().split(/\s+/);
+  if (!el.fit || lines.length > 1 || words.length < 2 || words.length > 20) return lines;
+  let best = lines;
+  let bestSize = fittedFontSize(el, lines);
+  for (let count = 2; count <= words.length; count++) {
+    const wrapped = balancedLines(words, count);
+    const size = fittedFontSize(el, wrapped);
+    if (size > bestSize + 1e-9) [best, bestSize] = [wrapped, size];
+  }
+  return best;
+}
+
+/** Words in at most `count` lines, keeping the longest line as short as can be (greedy fill per width). */
+function balancedLines(words: string[], count: number): string[] {
+  const total = words.join(" ").length;
+  for (let width = Math.max(...words.map((w) => w.length)); width <= total; width++) {
+    const lines: string[] = [];
+    for (const word of words) {
+      const last = lines[lines.length - 1];
+      if (last !== undefined && last.length + 1 + word.length <= width) lines[lines.length - 1] = `${last} ${word}`;
+      else lines.push(word);
+    }
+    if (lines.length <= count) return lines;
+  }
+  return [words.join(" ")];
+}
+
 // Gap between a text's styled box (fill or border) and the text inside, in mm.
 const TEXT_PADDING = 0.5;
 
@@ -78,7 +115,8 @@ function renderBox(area: Area, style: Partial<BoxStyle>): string {
 }
 
 function renderText(styled: TextElement, vars: Partial<LabelVariables>): string {
-  const lines = fillVariables(styled.text, vars).split("\n");
+  const filled = fillVariables(styled.text, vars);
+  const lines = filled.split("\n");
   // An empty text hides its box too, so a blank {{name}} leaves no empty badge.
   if (lines.every((l) => !l.trim())) return "";
   const background = renderBox(styled, styled);
@@ -91,9 +129,12 @@ function renderText(styled: TextElement, vars: Partial<LabelVariables>): string 
     w: Math.max(0.1, styled.w - 2 * pad),
     h: Math.max(0.1, styled.h - 2 * pad),
   };
-  const size = fittedFontSize(el, lines);
-  // Centre the block of lines vertically in the box.
-  const top = el.y + (el.h - lines.length * size * LINE_HEIGHT) / 2;
+  // Wrapped against the padded box, since that's what the text must fit.
+  const fitted = fitLines(el, filled);
+  const size = fittedFontSize(el, fitted);
+  // Place the block of lines in the box's height: top, bottom or centred.
+  const spare = el.h - fitted.length * size * LINE_HEIGHT;
+  const top = el.y + (el.valign === "top" ? 0 : el.valign === "bottom" ? spare : spare / 2);
   const x = el.align === "start" ? el.x : el.align === "middle" ? el.x + el.w / 2 : el.x + el.w;
   const attrs = [
     `font-family="${el.mono ? FONT_MONO : FONT_SANS}"`,
@@ -102,7 +143,7 @@ function renderText(styled: TextElement, vars: Partial<LabelVariables>): string 
     `text-anchor="${el.align}"`,
     `fill="${el.color ?? "#000"}"`,
   ].filter(Boolean);
-  const tspans = lines
+  const tspans = fitted
     .map(
       (line, i) =>
         `<tspan x="${n(x)}" y="${n(top + (i * LINE_HEIGHT + ASCENT) * size)}">${escapeXml(line)}</tspan>`,
@@ -212,13 +253,20 @@ function svgDocument(width: number, height: number, body: string): string {
   );
 }
 
-/** A single label as a standalone SVG at its own size, with the location's slot values. */
+/** One location's template: its own slot values, then what its contents fill in. */
+export function fillTemplate(template: LabelTemplate, slots?: LabelSlots, contents?: LabelContents): LabelTemplate {
+  const own = applySlots(template, slots);
+  return contents ? applyContents(own, contents, slots) : own;
+}
+
+/** A single label as a standalone SVG at its own size, with the location's slot values and contents. */
 export function renderLabelSvg(
   template: LabelTemplate,
   vars: Partial<LabelVariables>,
   slots?: LabelSlots,
+  contents?: LabelContents,
 ): RenderedLabel {
-  const { body, errors } = renderLabelBody(applySlots(template, slots), vars);
+  const { body, errors } = renderLabelBody(fillTemplate(template, slots, contents), vars);
   return {
     body: svgDocument(template.width, template.height, `<rect width="100%" height="100%" fill="#fff"/>${body}`),
     errors,
@@ -228,7 +276,7 @@ export function renderLabelSvg(
 /**
  * Every label laid out onto pages: one SVG per page, at the page size of the
  * template's layout (the label size itself for label printers). Each label
- * gets its own location's slot values.
+ * gets its own location's slot values and contents.
  */
 export function renderPages(
   template: LabelTemplate,
@@ -239,9 +287,9 @@ export function renderPages(
   const placements = placeLabels(template, labels.length, skip);
   const bodies: string[][] = [];
   const errors: string[] = [];
-  labels.forEach(({ vars, slots }, i) => {
+  labels.forEach(({ vars, slots, contents }, i) => {
     const { page, x, y } = placements[i];
-    const rendered = renderLabelBody(applySlots(template, slots), vars, options);
+    const rendered = renderLabelBody(fillTemplate(template, slots, contents), vars, options);
     errors.push(...rendered.errors.map((e) => (vars.code ? `${vars.code}: ${e}` : e)));
     (bodies[page] ??= []).push(
       x === 0 && y === 0 ? rendered.body : `<g transform="translate(${n(x)} ${n(y)})">${rendered.body}</g>`,

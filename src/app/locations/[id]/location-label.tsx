@@ -12,6 +12,7 @@ import {
 } from "@/lib/label-template";
 import { renderLabelSvg } from "@/lib/label-render";
 import { templateSlots, type LabelSlots } from "@/lib/label-slots";
+import type { LabelContents } from "@/lib/label-contents";
 import { assignLabelTemplate } from "@/app/settings/labels/actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,12 +34,14 @@ import { LabelSlotFields } from "./label-slot-fields";
  * This location's printable label, rendered with its real data, with the
  * template its type uses: switch it, edit it in place (the designer in a
  * dialog), print it, or print the labels of everything inside by type. The
- * template's slots can be filled with this location's own text or symbol.
+ * template's slots can be filled with this location's own text or symbol;
+ * graphics and `{{attr:…}}` texts bound to its contents fill themselves.
  */
 export function LocationLabel({
   locationId,
   vars,
   slots,
+  contents,
   type,
   current,
   options,
@@ -49,6 +52,8 @@ export function LocationLabel({
   vars: LabelVariables;
   // This location's own values for the template's slots.
   slots: LabelSlots;
+  // What its parts agree on, for the graphics and texts bound to them.
+  contents: LabelContents;
   type: { id: string; name: string };
   current: TemplateOption;
   options: TemplateOption[];
@@ -60,7 +65,10 @@ export function LocationLabel({
   const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [pending, startTransition] = useTransition();
-  const rendered = useMemo(() => renderLabelSvg(current.template, vars, slots), [current, vars, slots]);
+  const rendered = useMemo(
+    () => renderLabelSvg(current.template, vars, slots, contents),
+    [current, vars, slots, contents],
+  );
   const slotList = useMemo(() => templateSlots(current.template), [current]);
   const affected = [type.name, ...sharedWith].join(", ");
 
@@ -127,7 +135,7 @@ export function LocationLabel({
         </Select>
 
         {slotList.length > 0 ? (
-          <LabelSlotFields locationId={locationId} slots={slotList} values={slots} />
+          <LabelSlotFields locationId={locationId} slots={slotList} values={slots} contents={contents} />
         ) : (
           <p className="text-xs text-muted-foreground">
             To give this {type.name} its own symbol or note, edit the label and let a text or graphic be filled
@@ -189,6 +197,7 @@ export function LocationLabel({
               }
               vars={vars}
               slots={slots}
+              contents={contents}
               assignToTypeId={type.id}
               notice={
                 <p className="flex items-start gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">

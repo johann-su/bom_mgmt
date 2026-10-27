@@ -6,6 +6,7 @@ import { ChevronDown, FileDown, FileImage, FileSpreadsheet, FileType } from "luc
 import { pageSize, type LabelVariables, type TemplateOption } from "@/lib/label-template";
 import { labelsCsv, renderPages } from "@/lib/label-render";
 import type { LabelSlots } from "@/lib/label-slots";
+import type { LabelContents } from "@/lib/label-contents";
 import { downloadBlob, filesOrZip, pagesToPdf, svgToPng, svgsToOutlines } from "@/lib/label-export";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -38,6 +39,7 @@ export type PrintItem = {
   icon: string;
   vars: LabelVariables;
   slots: LabelSlots;
+  contents: LabelContents;
 };
 
 

@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FileText, ImageIcon, Plus, Sparkles, X } from "lucide-react";
+import { FileText, ImageIcon, Library, Plus, Sparkles, X } from "lucide-react";
 import { resolveSpec } from "@/lib/generic-families";
 import type { GeneratedPart, GenericSpec } from "@/lib/generic-parts";
-import type { PartAttribute } from "@/lib/part-attributes";
+import { isIconAttribute, type PartAttribute } from "@/lib/part-attributes";
+import { iconUrl, isIconId } from "@/lib/label-icons";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
 import { isNextRedirectError } from "@/lib/utils";
@@ -24,6 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { LocationPicker } from "@/components/location-picker";
+import { IconPickerDialog } from "@/components/icon-picker-dialog";
 import { attachShopFiles, createPart, lookupOrderUrl, updatePart } from "./actions";
 import { applyGenerated, GENERATED_FIELDS, type GeneratedField } from "@/lib/generic-fill";
 import { GenericPartDialog } from "./generic-part-dialog";
@@ -115,6 +117,9 @@ export function PartForm({
   const [lookingUp, startLookup] = useTransition();
   // Which link "Fill from link" is reading, for its button label.
   const [lookupIndex, setLookupIndex] = useState<number | null>(null);
+
+  // The attribute row whose icon is being picked (icon-1, icon-2: bin label pictures).
+  const [pickingIcon, setPickingIcon] = useState<number | null>(null);
 
   function updateAttribute(index: number, patch: Partial<PartAttribute>) {
     setAttributes((prev) => prev.map((a, i) => (i === index ? { ...a, ...patch } : a)));
@@ -504,7 +509,7 @@ export function PartForm({
         </CardHeader>
         <CardContent className="grid gap-2">
           {attributes.map((attribute, index) => (
-            <div key={index} className="grid grid-cols-[1fr_1fr_auto] gap-2">
+            <div key={index} className="grid grid-cols-[1fr_1fr_auto_auto] gap-2">
               <Input
                 value={attribute.key}
                 onChange={(e) => updateAttribute(index, { key: e.target.value })}
@@ -517,6 +522,25 @@ export function PartForm({
                 placeholder="M3"
                 aria-label="Attribute value"
               />
+              {isIconAttribute(attribute.key) ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  aria-label="Pick icon"
+                  title="Pick the icon a bin label shows here"
+                  onClick={() => setPickingIcon(index)}
+                >
+                  {isIconId(attribute.value) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={iconUrl(attribute.value)} alt="" className="size-5 rounded-sm bg-white p-px" />
+                  ) : (
+                    <Library className="size-4" />
+                  )}
+                </Button>
+              ) : (
+                <span />
+              )}
               <Button
                 type="button"
                 variant="ghost"
@@ -538,6 +562,11 @@ export function PartForm({
               <Plus className="size-4" />
               Add attribute
             </Button>
+            <IconPickerDialog
+              open={pickingIcon !== null}
+              onOpenChange={(open) => !open && setPickingIcon(null)}
+              onPick={(picked) => pickingIcon !== null && updateAttribute(pickingIcon, { value: picked.id })}
+            />
           </div>
         </CardContent>
       </Card>

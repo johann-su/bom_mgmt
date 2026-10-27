@@ -6,6 +6,7 @@ import { FASTENER_FAMILY } from "@/lib/fasteners";
 import {
   rangeParam,
   resolveValues,
+  type GeneratedPart,
   type GenericFamily,
   type GenericSpec,
   type GenericType,
@@ -36,4 +37,13 @@ export function resolveSpec(spec: GenericSpec): { type: GenericType; values: Gen
     if (param === range ? range.parse(value) !== value : values[param.id] !== value) return null;
   }
   return { type, values: spec.values };
+}
+
+/** What the wizard makes from a stored spec today, or null if it's stale or
+ *  no longer valid. */
+export function regenerate(spec: GenericSpec | null | undefined): GeneratedPart | null {
+  const restored = spec && resolveSpec(spec);
+  if (!restored) return null;
+  const part = restored.type.generate(restored.values);
+  return "error" in part ? null : part;
 }

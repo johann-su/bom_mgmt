@@ -86,3 +86,22 @@ test("male crimp pins and plug housings exist only as generic clone parts", () =
   // Switching a male pin to genuine falls back to a piece JST makes.
   assert.equal(resolveValues(xh, { piece: "crimp-m", make: "jst" }).values.piece, "housing");
 });
+
+test("connectors get a Short name with their series, so a bin label tells Dupont from JST", () => {
+  const short = (type: string, values: GenericValues) => attr(part(type, values), "Short name");
+  assert.equal(short("jst-xh", { piece: "housing", make: "generic", pins: "4" }), "JST XH 4-pin");
+  // Same series and pin count, different piece → different bins, different names.
+  assert.equal(short("jst-xh", { piece: "header", make: "generic", pins: "4" }), "JST XH 4-pin header");
+  assert.equal(short("jst-xh", { piece: "crimp", make: "generic" }), "JST XH crimp F");
+  assert.equal(short("dupont", { piece: "housing", rows: "1", pins: "1" }), "Dupont 1×1");
+  assert.equal(short("dupont", { piece: "crimp-m" }), "Dupont crimp M");
+});
+
+test("connectors picture their series in icon-1 and the piece in icon-2, like screws do head and drive", () => {
+  const crimp = part("jst-xh", { piece: "crimp", make: "generic" });
+  assert.equal(attr(crimp, "icon-1"), "connector/faces/jst-xh");
+  assert.equal(attr(crimp, "icon-2"), "connector/variants/crimp-f");
+  // A housing's own icon is the series face, so it isn't pictured twice.
+  const housing = part("jst-xh", { piece: "housing", make: "generic", pins: "4" });
+  assert.equal(attr(housing, "icon-2"), undefined);
+});

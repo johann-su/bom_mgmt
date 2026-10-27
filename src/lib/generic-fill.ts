@@ -59,3 +59,24 @@ export function applyGenerated(
     kept,
   };
 }
+
+/**
+ * The part's attributes plus the generated ones it doesn't have a key for
+ * yet, for backfilling attributes a newer wizard adds ("Head") onto parts
+ * made before. Each goes where the wizard puts it — after the generated
+ * attribute before it — and values the part already has, edited or not, are
+ * never touched. Null when nothing is missing.
+ */
+export function withMissingAttributes(current: PartAttribute[], generated: PartAttribute[]): PartAttribute[] | null {
+  const key = (a: PartAttribute) => a.key.trim().toLowerCase();
+  const out = [...current];
+  let added = false;
+  for (const [i, attr] of generated.entries()) {
+    if (out.some((a) => key(a) === key(attr))) continue;
+    const before = new Set(generated.slice(0, i).map(key));
+    const after = out.findLastIndex((a) => before.has(key(a)));
+    out.splice(after + 1, 0, attr);
+    added = true;
+  }
+  return added ? out : null;
+}

@@ -17,6 +17,7 @@ import {
   type LabelVariables,
   type TextElement,
 } from "@/lib/label-template";
+import type { LabelContents } from "@/lib/label-contents";
 import { MAX_GRAPHIC_MARKUP, sanitizeSvgMarkup } from "@/lib/svg-sanitize";
 
 export type SlotValue =
@@ -29,8 +30,8 @@ export type SlotValue =
 
 export type LabelSlots = Record<string, SlotValue>;
 
-/** What one label is printed with: the location's variables and slot values. */
-export type LabelData = { vars: Partial<LabelVariables>; slots?: LabelSlots };
+/** What one label is printed with: the location's variables, slot values and contents. */
+export type LabelData = { vars: Partial<LabelVariables>; slots?: LabelSlots; contents?: LabelContents };
 
 // `element` is the first element with this name — its content is the default.
 export type TemplateSlot =

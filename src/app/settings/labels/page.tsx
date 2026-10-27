@@ -5,6 +5,7 @@ import { loadLabelTemplates } from "@/lib/label-templates";
 import { loadLocationTypes } from "@/lib/locations";
 import { DEFAULT_TEMPLATES, SAMPLE_VARIABLES, type LabelTemplate } from "@/lib/label-template";
 import { renderLabelSvg } from "@/lib/label-render";
+import { SAMPLE_CONTENTS } from "@/lib/label-contents";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,7 +45,7 @@ export default async function LabelTemplatesPage() {
             {templates.map((t) => (
               <Card key={t.id} className="gap-3 p-4">
                 <LabelPreview
-                  svg={renderLabelSvg(t.template, SAMPLE_VARIABLES).body}
+                  svg={renderLabelSvg(t.template, SAMPLE_VARIABLES, undefined, SAMPLE_CONTENTS).body}
                   className="mx-auto max-h-40 w-full max-w-xs"
                 />
                 <div className="flex items-center gap-2">
@@ -83,7 +84,7 @@ export default async function LabelTemplatesPage() {
               href={`/settings/labels/new?from=${index}`}
               className="group rounded-xl border p-3 transition-colors hover:bg-accent/50"
             >
-              <LabelPreview svg={renderLabelSvg(t.template, SAMPLE_VARIABLES).body} />
+              <LabelPreview svg={renderLabelSvg(t.template, SAMPLE_VARIABLES, undefined, SAMPLE_CONTENTS).body} />
               <div className="mt-2 text-sm font-medium group-hover:underline">{t.name}</div>
               <div className="text-xs text-muted-foreground">{describe(t.template)}</div>
             </Link>

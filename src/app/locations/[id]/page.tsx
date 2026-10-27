@@ -19,6 +19,8 @@ import { loadTemplateOptions } from "@/lib/label-templates";
 import { getCodeSeparator } from "@/lib/settings";
 import { locationVariables, templateForType } from "@/lib/label-template";
 import { storedSlots } from "@/lib/label-slots";
+import { NO_CONTENTS } from "@/lib/label-contents";
+import { loadLabelContents } from "@/lib/label-contents-queries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -107,7 +109,10 @@ export default async function LocationPage({ params }: Params) {
     .where(eq(stock.locationId, id))
     .orderBy(asc(parts.name));
 
-  const thumbs = await firstImages(contents.map((c) => c.partId));
+  const [thumbs, labelContents] = await Promise.all([
+    firstImages(contents.map((c) => c.partId)),
+    loadLabelContents([id]),
+  ]);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
@@ -179,6 +184,7 @@ export default async function LocationPage({ params }: Params) {
           separator,
         })}
         slots={storedSlots(details?.labelSlots)}
+        contents={labelContents.get(id) ?? NO_CONTENTS}
         type={{ id: location.type.id, name: location.type.name }}
         current={label}
         options={templateOptions}

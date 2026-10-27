@@ -20,6 +20,8 @@ export type GeneratedPart = {
   /** Catalogue icons for the wizard's preview, left to right, as on a bin
    *  label (drive + side view, connector series + piece). Not stored. */
   preview: string[];
+  /** Specs, then the picture attributes ("icon-1": head, "icon-2": drive)
+   *  that bin label graphics show (iconAttributes in part-attributes.ts). */
   attributes: PartAttribute[];
 };
 

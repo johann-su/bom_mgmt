@@ -7,7 +7,7 @@
 // wizard (src/lib/generic-parts.ts).
 
 import type { GeneratedPart, GenericFamily, GenericParam } from "@/lib/generic-parts";
-import type { PartAttribute } from "@/lib/part-attributes";
+import { iconAttributes, type PartAttribute } from "@/lib/part-attributes";
 
 type Kind = "screw" | "setscrew" | "nut" | "washer" | "insert";
 
@@ -661,6 +661,18 @@ const materialText = (m: FastenerMaterial, grade: string) =>
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 const diameter = (size: string) => Number(size.slice(1)) || 0;
 
+// The "Head" attribute, by the side-view icon's name.
+const HEAD_SHAPES: Record<string, string> = {
+  "socket-cap": "Socket cap",
+  button: "Button",
+  countersunk: "Countersunk",
+  pan: "Pan",
+  cheese: "Cheese",
+  "hex-head": "Hex",
+};
+const headShape = (type: FastenerType) =>
+  type.kind === "screw" ? HEAD_SHAPES[type.icons[0].split("/").pop()!] : undefined;
+
 /** Describes one fastener, or says which part of the spec doesn't exist. */
 export function generateFastener(spec: FastenerSpec): GeneratedPart | { error: string } {
   const type = fastenerType(spec.type);
@@ -696,7 +708,7 @@ export function generateFastener(spec: FastenerSpec): GeneratedPart | { error: s
     icon: type.icons[0],
     // Drive first, then the side view — as on a bin label.
     preview: [...type.icons].reverse(),
-    attributes: attributesFor(type, spec.size, dims, length, material, grade),
+    attributes: [...attributesFor(type, spec.size, dims, length, material, grade), ...labelIcons(type)],
   };
 }
 
@@ -711,6 +723,9 @@ function attributesFor(
   const out: PartAttribute[] = [];
   const add = (key: string, value: string) => out.push({ key, value });
   if (type.standard) add("Standard", type.alias ? `${type.standard} / ${type.alias}` : type.standard);
+  // What a bin label calls it ({{attr:Short name}}), so one template fits
+  // every family: "M3×8" for screws and inserts, "M3" for nuts and washers.
+  add("Short name", length ? `${size}×${length}` : size);
   if (type.kind === "washer") {
     add("Fits", size);
     add("Inner Ø", mm(dims[0]));
@@ -721,6 +736,8 @@ function attributesFor(
     add("Pitch", mm(PITCH[size]));
   }
   if (length) add("Length", mm(length));
+  const head = headShape(type);
+  if (head) add("Head", head);
   if (type.kind === "screw" && type.drive) {
     add("Head Ø", mm(dims[0]));
     add("Head height", mm(dims[1]));
@@ -733,6 +750,14 @@ function attributesFor(
   }
   add("Material", materialText(material, grade));
   return out;
+}
+
+// The bin label's pictures: the part itself — a screw upright, which reads
+// better on a label than the thumbnail's sideways view — then its drive if
+// it has one. A nut or washer is just itself.
+function labelIcons(type: FastenerType): PartAttribute[] {
+  const [part, drive] = type.icons;
+  return iconAttributes([part.replace("/heads-sideways/", "/heads/"), drive]);
 }
 
 // One wizard tile per head shape; where it comes in several drives (each its

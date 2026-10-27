@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Shapes } from "lucide-react";
+import { isIconAttribute } from "@/lib/part-attributes";
 import { GENERIC_FAMILIES, resolveSpec } from "@/lib/generic-families";
 import {
   rangeParam,
@@ -291,7 +292,11 @@ export function GenericPartDialog({
                 <p className="font-medium">{single.name}</p>
                 {single.mpn && <p className="font-mono text-xs text-muted-foreground">{single.mpn}</p>}
                 <p className="text-xs text-muted-foreground">
-                  {single.attributes.map((a) => `${a.key} ${a.value}`).join(" · ")}
+                  {/* The icon-N pictures are already shown in the tile. */}
+                  {single.attributes
+                    .filter((a) => !isIconAttribute(a.key))
+                    .map((a) => `${a.key} ${a.value}`)
+                    .join(" · ")}
                 </p>
               </div>
             </div>

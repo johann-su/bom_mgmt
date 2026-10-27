@@ -15,6 +15,9 @@ import {
   AlignStartHorizontal,
   AlignStartVertical,
   AlignVerticalDistributeCenter,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyEnd,
+  AlignVerticalJustifyStart,
   ChevronDown,
   ChevronUp,
   ChevronsDown,
@@ -48,6 +51,13 @@ import {
 } from "@/lib/label-template";
 import { renderLabelBody } from "@/lib/label-render";
 import { applySlots, freeSlotName, slotConflicts, type LabelSlots } from "@/lib/label-slots";
+import {
+  COMMON_ATTRIBUTES,
+  PICTURED_ATTRIBUTES,
+  SAMPLE_CONTENTS,
+  applyContents,
+  type LabelContents,
+} from "@/lib/label-contents";
 import { alignElements, distributeElements, type Alignment } from "@/lib/label-snap";
 import { moveElements, restack, type Restack } from "@/lib/label-order";
 import { parseClipboard, placePasted, serializeElements } from "@/lib/label-clipboard";
@@ -200,6 +210,7 @@ export function LabelDesigner({
   initial,
   vars = SAMPLE_VARIABLES,
   slots,
+  contents = SAMPLE_CONTENTS,
   assignToTypeId,
   notice,
   onSaved,
@@ -207,6 +218,8 @@ export function LabelDesigner({
   initial: Initial;
   vars?: LabelVariables;
   slots?: LabelSlots;
+  // What the previewed location holds, for `{{attr:…}}` and bound graphics.
+  contents?: LabelContents;
   assignToTypeId?: string;
   // Shown above the canvas, e.g. "Changes apply to every Bin".
   notice?: React.ReactNode;
@@ -217,8 +230,13 @@ export function LabelDesigner({
   const [name, setName] = useState(initial.name);
   const [history, setHistory] = useState(() => createHistory(initial.template));
   const template = history.present;
-  // What the canvas shows: the template with the previewed location's slot values.
-  const previewed = useMemo(() => applySlots(template, slots), [template, slots]);
+  // What the canvas shows: the template with the previewed location's slot
+  // values and contents. A bound graphic the contents don't picture keeps its
+  // stand-in, so it can still be selected and moved.
+  const previewed = useMemo(
+    () => applyContents(applySlots(template, slots), contents, slots, { keepStandIns: true }),
+    [template, slots, contents],
+  );
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [grid, setGrid] = useState("0.5");
   const [snapToObjects, setSnapToObjects] = useState(true);
@@ -944,6 +962,32 @@ export function LabelDesigner({
                       Fit box to graphic
                     </Button>
                   </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor="element-attr" className="text-xs text-muted-foreground">
+                      Picture from contents
+                    </Label>
+                    <Input
+                      id="element-attr"
+                      list="pictured-attributes"
+                      value={selected.attr ?? ""}
+                      placeholder="Off — e.g. icon-1"
+                      onChange={(e) => updateElement(selected.id, { attr: e.target.value.slice(0, 60) || undefined })}
+                      onBlur={() => updateElement(selected.id, { attr: selected.attr?.trim() || undefined })}
+                      className="h-8 text-sm"
+                    />
+                    <datalist id="pictured-attributes">
+                      {PICTURED_ATTRIBUTES.map((a) => (
+                        <option key={a} value={a} />
+                      ))}
+                    </datalist>
+                    {selected.attr && (
+                      <p className="text-xs text-muted-foreground">
+                        Shows the icon in the parts&apos; “{selected.attr}” attribute when everything in the
+                        location agrees on it, else nothing. Wizard parts picture themselves in icon-1, icon-2
+                        (screw head, drive; connector series, piece). This drawing is only the stand-in.
+                      </p>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     Thermal label printers print every colour as black or white.
                   </p>
@@ -970,6 +1014,17 @@ export function LabelDesigner({
                         className="rounded border px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
                       >
                         {`{{${v}}}`}
+                      </button>
+                    ))}
+                    {COMMON_ATTRIBUTES.map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        title={`The parts' “${a}” attribute, when everything in the location agrees on it — any attribute name works`}
+                        onClick={() => updateElement(selected.id, { text: `${selected.text}{{attr:${a}}}` })}
+                        className="rounded border border-dashed px-1.5 py-0.5 font-mono text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+                      >
+                        {`{{attr:${a}}}`}
                       </button>
                     ))}
                   </div>
@@ -1012,7 +1067,7 @@ export function LabelDesigner({
                     />
                     <div className="grid gap-1 text-xs text-muted-foreground">
                       <span>Align</span>
-                      <div className="flex gap-1">
+                      <div className="flex flex-wrap gap-1">
                         {(
                           [
                             ["start", AlignLeft],
@@ -1027,6 +1082,26 @@ export function LabelDesigner({
                             className="size-8"
                             aria-label={`Align ${align}`}
                             onClick={() => updateElement(selected.id, { align })}
+                          >
+                            <Icon className="size-4" />
+                          </Button>
+                        ))}
+                        <span className="mx-0.5 w-px self-stretch bg-border" />
+                        {(
+                          [
+                            ["top", AlignVerticalJustifyStart, "Top"],
+                            [undefined, AlignVerticalJustifyCenter, "Middle"],
+                            ["bottom", AlignVerticalJustifyEnd, "Bottom"],
+                          ] as const
+                        ).map(([valign, Icon, label]) => (
+                          <Button
+                            key={label}
+                            size="icon"
+                            variant={selected.valign === valign ? "secondary" : "ghost"}
+                            className="size-8"
+                            aria-label={`Text to the ${label.toLowerCase()} of the box`}
+                            title={`${label} of the box`}
+                            onClick={() => updateElement(selected.id, { valign })}
                           >
                             <Icon className="size-4" />
                           </Button>

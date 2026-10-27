@@ -11,6 +11,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -21,7 +22,20 @@ export type ComboboxOption = {
   detail?: string;
   // Extra text the search matches on besides label and detail.
   keywords?: string[];
+  // Heading of the section the option is listed under; consecutive options
+  // with the same group share one section.
+  group?: string;
 };
+
+function sections(options: ComboboxOption[]) {
+  const out: { heading?: string; options: ComboboxOption[] }[] = [];
+  for (const option of options) {
+    const last = out.at(-1);
+    if (last && last.heading === option.group) last.options.push(option);
+    else out.push({ heading: option.group, options: [option] });
+  }
+  return out;
+}
 
 // Searchable single-select for lists too long for a <Select>: locations and
 // parts. cmdk filters on label + detail + keywords.
@@ -72,29 +86,34 @@ export function Combobox({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((option) => (
-                <CommandItem
-                  key={option.value}
-                  // cmdk matches on `value`; make it unique and searchable.
-                  value={`${option.label} ${option.detail ?? ""} ${(option.keywords ?? []).join(" ")} ${option.value}`}
-                  onSelect={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={cn("size-4", option.value === value ? "opacity-100" : "opacity-0")}
-                  />
-                  <div className="min-w-0">
-                    <div className="truncate">{option.label}</div>
-                    {option.detail && (
-                      <div className="truncate text-xs text-muted-foreground">{option.detail}</div>
-                    )}
-                  </div>
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {sections(options).map((section, i) => [
+              i > 0 && <CommandSeparator key={`sep-${i}`} />,
+              <CommandGroup key={`group-${i}`} heading={section.heading}>
+                {section.options.map((option) => (
+                  <CommandItem
+                    key={option.value}
+                    // cmdk matches on `value`; make it unique and searchable.
+                    value={`${option.label} ${option.detail ?? ""} ${(option.keywords ?? []).join(" ")} ${option.value}`}
+                    onSelect={() => {
+                      onChange(option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn("size-4", option.value === value ? "opacity-100" : "opacity-0")}
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate">{option.label}</div>
+                      {option.detail && (
+                        <div className="truncate text-xs text-muted-foreground">
+                          {option.detail}
+                        </div>
+                      )}
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>,
+            ])}
           </CommandList>
         </Command>
       </PopoverContent>

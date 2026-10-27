@@ -11,7 +11,7 @@ import {
   type GenericParam,
   type GenericType,
 } from "@/lib/generic-parts";
-import type { PartAttribute } from "@/lib/part-attributes";
+import { iconAttributes, type PartAttribute } from "@/lib/part-attributes";
 
 // The pieces JST makes. Their XH/PH/… systems are wire-to-board: the cable
 // housing takes female contacts and the board header supplies the pins.
@@ -221,6 +221,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
 
   const byPiece = {
     housing: {
+      short: `${label} ${pins}-pin`,
       name: `${label} housing ${pins}-pin`,
       description: `${intro} receptacle housing, ${pins} positions, ${series.pitch} mm pitch (${compat}). Mates with headers ${headers}; takes ${series.mpn.crimp(0)} crimp contacts.`,
       // The series' face shows the housing better than the generic top view.
@@ -232,6 +233,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ]),
     },
     header: {
+      short: `${label} ${pins}-pin header`,
       name: `${label} header ${pins}-pin, top entry`,
       description: `${intro} header, ${pins} positions, ${series.pitch} mm pitch, top entry, ${mount.toLowerCase()} (${compat}). Mates with housing ${series.mpn.housing(pins)}.`,
       icon: series.smd ? "connector/variants/header-smd" : "connector/variants/header",
@@ -241,6 +243,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ]),
     },
     "header-ra": {
+      short: `${label} ${pins}-pin header RA`,
       name: `${label} header ${pins}-pin, side entry`,
       description: `${intro} header, ${pins} positions, ${series.pitch} mm pitch, side entry (right angle), ${mount.toLowerCase()} (${compat}). Mates with housing ${series.mpn.housing(pins)}.`,
       icon: "connector/variants/header-ra",
@@ -250,6 +253,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ]),
     },
     crimp: {
+      short: `${label} crimp F`,
       name: `${label} crimp contact, female`,
       description: `${intro} crimp contact (socket) for ${label} housings, ${series.wire} (${compat}).`,
       icon: "connector/variants/crimp-f",
@@ -259,6 +263,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ]),
     },
     plug: {
+      short: `${label} ${pins}-pin plug`,
       name: `${label} plug housing ${pins}-pin, male`,
       description: `${label}-compatible wire-to-wire plug housing for male crimp pins, ${pins} positions, ${series.pitch} mm pitch. Mates with a ${series.mpn.housing(pins)} housing fitted with ${series.mpn.crimp(0)} contacts. A clone part: JST's own ${label} has no wire-to-wire plug.`,
       icon: "connector/variants/housing-m",
@@ -269,6 +274,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ]),
     },
     "crimp-m": {
+      short: `${label} crimp M`,
       name: `${label} crimp contact, male`,
       description: `${label}-compatible male crimp pin for wire-to-wire plug housings, ${series.wire}. A clone part: JST's own ${label} has no male crimp contact.`,
       icon: "connector/variants/crimp-m",
@@ -293,12 +299,16 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
     attributes: [
       ...attrs([
         ["Series", label],
+        // What a bin label calls it ({{attr:Short name}}).
+        ["Short name", byPiece.short],
         ["Pitch", mm(series.pitch)],
         ["Pins", !isCrimp(piece) && String(pins)],
         ["Rated current", series.current],
         ["Rated voltage", series.voltage],
       ]),
       ...byPiece.extra,
+      // The bin label's pictures, as in the preview: the series, then the piece.
+      ...iconAttributes([...new Set([`connector/faces/${series.id}`, byPiece.icon])]),
     ],
   };
 }
@@ -353,7 +363,7 @@ const DUPONT: GenericType = {
         category: ["Connectors"],
         icon,
         preview: ["connector/faces/dupont", icon],
-        attributes: [...common, { key: "Contact", value: gender === "female" ? "Female (socket)" : "Male (pin)" }, { key: "Wire", value: "AWG 28–22" }],
+        attributes: [...common, { key: "Short name", value: `Dupont crimp ${gender === "female" ? "F" : "M"}` }, { key: "Contact", value: gender === "female" ? "Female (socket)" : "Male (pin)" }, { key: "Wire", value: "AWG 28–22" }, ...iconAttributes(["connector/faces/dupont", icon])],
       };
     }
     if (values.piece !== "housing") return { error: "Pick a piece" };
@@ -371,8 +381,10 @@ const DUPONT: GenericType = {
       preview: ["connector/faces/dupont"],
       attributes: [
         ...common,
+        { key: "Short name", value: `Dupont ${rows}×${perRow}` },
         { key: "Rows", value: String(rows) },
         { key: "Pins", value: String(rows * perRow) },
+        ...iconAttributes(["connector/faces/dupont"]),
       ],
     };
   },
@@ -441,13 +453,14 @@ const PIN_HEADER: GenericType = {
       icon,
       preview: [icon],
       attributes: attrs([
+        ["Short name", `${female ? "Socket" : "Header"} ${rows}×${perRow}${right ? " RA" : ""}, ${values.pitch}`],
         ["Pitch", `${values.pitch} mm`],
         ["Rows", String(rows)],
         ["Pins", String(rows * perRow)],
         ["Gender", female ? "Female" : "Male"],
         ["Orientation", right ? "Right angle" : "Straight"],
         ["Mount", "Through-hole"],
-      ]),
+      ]).concat(iconAttributes([icon])),
     };
   },
 };

@@ -35,3 +35,19 @@ export function normalizeAttributes(raw: unknown): PartAttribute[] {
 export function mergeAttributes(existing: PartAttribute[], incoming: PartAttribute[]): PartAttribute[] {
   return normalizeAttributes([...existing, ...incoming]);
 }
+
+// Picture attributes: "icon-1", "icon-2", … hold label-icon catalogue ids
+// ("screw/drives/hex"), in the order a bin label shows them. A label graphic
+// bound to "icon-1" pictures whatever the location's parts have there, so one
+// template fits screws (head, drive) and connectors (series, piece) alike.
+const ICON_KEY_RE = /^icon-(\d{1,2})$/i;
+
+export const iconAttributeKey = (n: number) => `icon-${n}`;
+
+/** Whether an attribute names a picture ("icon-2") rather than a spec. */
+export const isIconAttribute = (key: string) => ICON_KEY_RE.test(key.trim());
+
+/** Picture attributes for catalogue ids, numbered from 1, empty ids skipped. */
+export function iconAttributes(ids: (string | undefined)[]): PartAttribute[] {
+  return ids.filter((id): id is string => !!id).map((id, i) => ({ key: iconAttributeKey(i + 1), value: id }));
+}

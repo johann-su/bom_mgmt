@@ -12,6 +12,8 @@ import { formatQuantity } from "@/lib/format";
 import { supplierName } from "@/lib/part-input";
 import { formatStock, isLowStock, toPickerValue, totalStock, TRACKING_INFO } from "@/lib/stock";
 import { isUuid } from "@/lib/utils";
+import { iconUrl, isIconId, loadIcons } from "@/lib/label-icons";
+import { isIconAttribute } from "@/lib/part-attributes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -53,6 +55,11 @@ export default async function PartPage({ params }: Params) {
   });
   if (!part) notFound();
 
+  // Picture attributes (icon-1: a catalogue id) show as the icon and its name.
+  const iconNames = part.attributes.some((a) => isIconAttribute(a.key))
+    ? new Map((await loadIcons()).map((i) => [i.id, i.name]))
+    : new Map<string, string>();
+
   const [stockRows, locations, partFiles, usedIn, movements] = await Promise.all([
     db
       .select({ locationId: stock.locationId, quantity: stock.quantity })
@@ -89,6 +96,13 @@ export default async function PartPage({ params }: Params) {
   const stockByLocation = Object.fromEntries(
     stockRows.map((s) => [toPickerValue(s.locationId), s.quantity]),
   );
+  // Where the part lives, if that's a single place — the obvious target for
+  // the header's stock button.
+  const places = [
+    ...(unsorted > 0 ? [toPickerValue(null)] : []),
+    ...placed.map((s) => s.locationId),
+  ];
+  const onlyPlace = places.length === 1 ? places[0] : undefined;
   const cover = partFiles.find((f) => f.kind === "image");
   const stockPart = { id, name: part.name, unit: part.unit, tracking };
   const show = (quantity: number) => formatStock(tracking, quantity, part.unit);
@@ -168,6 +182,7 @@ export default async function PartPage({ params }: Params) {
                 part={stockPart}
                 locations={locations}
                 stockByLocation={stockByLocation}
+                defaultLocationId={onlyPlace}
                 modes={["add"]}
                 trigger={
                   <Button size="sm">
@@ -295,7 +310,21 @@ export default async function PartPage({ params }: Params) {
                     {part.attributes.map((a) => (
                       <div key={a.key} className="contents">
                         <dt className="text-muted-foreground">{a.key}</dt>
-                        <dd className="font-medium">{a.value}</dd>
+                        <dd className="font-medium">
+                          {isIconAttribute(a.key) && isIconId(a.value) && iconNames.has(a.value) ? (
+                            <span className="flex items-center gap-2" title={a.value}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={iconUrl(a.value)}
+                                alt=""
+                                className="size-6 rounded-sm bg-white p-0.5 ring-1 ring-border"
+                              />
+                              {iconNames.get(a.value)}
+                            </span>
+                          ) : (
+                            a.value
+                          )}
+                        </dd>
                       </div>
                     ))}
                   </dl>
