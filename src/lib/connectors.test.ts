@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { genericType } from "@/lib/generic-families";
-import type { GeneratedPart, GenericValues } from "@/lib/generic-parts";
+import { resolveValues, type GeneratedPart, type GenericValues } from "@/lib/generic-parts";
 
 function part(type: string, values: GenericValues): GeneratedPart {
   const result = genericType("connectors", type)!.generate(values);
@@ -41,7 +41,7 @@ test("SH/GH part numbers zero-pad the pin count and their headers are SMD", () =
 
 test("a crimp contact has no pin count in its name or attributes", () => {
   const crimp = part("jst-xh", { piece: "crimp", make: "generic" });
-  assert.equal(crimp.name, "JST XH crimp contact");
+  assert.equal(crimp.name, "JST XH crimp contact, female");
   assert.equal(crimp.mpn, "SXH-001T-P0.6");
   assert.equal(attr(crimp, "Pins"), undefined);
 });
@@ -60,4 +60,29 @@ test("Dupont and pin headers are generic: no MPN, sized by rows × pins per row"
   const header = part("pin-header", { gender: "female", angle: "straight", rows: "1", pitch: "2.54", pins: "8" });
   assert.equal(header.name, "Female header 1×8, 2.54 mm");
   assert.equal(header.icon, "connector/variants/socket");
+});
+
+// Genuine XH/PH are wire-to-board: the board header has the pins. Clone kits
+// add male pins and a plug housing for joining cables; JST has no number for
+// them, so they get none, and they aren't offered as genuine.
+test("male crimp pins and plug housings exist only as generic clone parts", () => {
+  const pin = part("jst-xh", { piece: "crimp-m", make: "generic" });
+  assert.equal(pin.name, "JST XH crimp contact, male");
+  assert.equal(pin.mpn, "");
+  assert.equal(attr(pin, "Contact"), "Male (pin)");
+  const plug = part("jst-xh", { piece: "plug", make: "generic", pins: "3" });
+  assert.equal(plug.name, "JST XH plug housing 3-pin, male");
+  assert.equal(plug.mpn, "");
+  assert.equal(attr(plug, "Mates with"), "XHP-3");
+
+  const xh = genericType("connectors", "jst-xh")!;
+  assert.ok("error" in xh.generate({ piece: "crimp-m", make: "jst" }));
+  const pieces = (make: string) => {
+    const param = resolveValues(xh, { make }).params.find((p) => p.id === "piece");
+    return param?.kind === "select" ? param.options.map((o) => o.value) : [];
+  };
+  assert.ok(pieces("generic").includes("crimp-m"));
+  assert.ok(!pieces("jst").includes("crimp-m"));
+  // Switching a male pin to genuine falls back to a piece JST makes.
+  assert.equal(resolveValues(xh, { piece: "crimp-m", make: "jst" }).values.piece, "housing");
 });

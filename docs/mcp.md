@@ -50,7 +50,7 @@ on localhost.
 
 | Read (always) | Write (`ENABLE_MCP_WRITE`) |
 | --- | --- |
-| `search_parts`, `get_part`, `list_locations`, `get_location`, `list_categories`, `list_boms`, `get_bom` | `create_part`, `update_part`, `adjust_stock`, `move_stock`, `import_parts`, `delete_part` |
+| `search_parts`, `get_part`, `describe_generic_part`, `list_locations`, `get_location`, `list_categories`, `list_boms`, `get_bom` | `create_part`, `create_generic_parts`, `update_part`, `adjust_stock`, `move_stock`, `import_parts`, `delete_part` |
 
 - **Writes go through the app's own code paths.** `src/lib/part-mutations.ts`
   and `src/lib/part-import.ts` back both the server actions and the tools, so
@@ -66,6 +66,15 @@ on localhost.
   through `planPartImport`, so MPN/name matching, location lookup and "empty
   never overwrites" behave exactly like `/parts/import`. Raw `csv` text works
   too (header guessing included). `dryRun` returns the preview.
+- **Generic parts go through the wizard's generators.** `describe_generic_part`
+  browses the "Generic part" catalogue (types, options resolved for the values
+  so far, a preview); `create_generic_parts` makes one part per range value
+  via `src/lib/generic-part-mutations.ts` — the same path as the dialog's
+  "Create N parts" — so a model's M3 screw has the app's name, designation and
+  specs, and its stored choice. `update_part`'s `generic` re-runs the wizard
+  on a part like "Edit generic part" does (hand-edited fields are kept). Unlike
+  the dialog, a value that isn't offered is an error listing the options, never
+  a silent fallback (`src/lib/mcp/generic-input.ts`).
 - **Errors the model can fix are tool results, not protocol errors**
   (`ToolError` → `isError`): unknown location (with real codes to choose from),
   not enough stock, part used in a BOM. Malformed arguments are `-32602`.

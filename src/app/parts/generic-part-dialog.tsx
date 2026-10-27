@@ -4,12 +4,14 @@ import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Shapes } from "lucide-react";
-import { GENERIC_FAMILIES } from "@/lib/generic-families";
+import { GENERIC_FAMILIES, resolveSpec } from "@/lib/generic-families";
 import {
   rangeParam,
   resolveValues,
   sortRange,
+  specFor,
   type GeneratedPart,
+  type GenericSpec,
   type GenericValues,
 } from "@/lib/generic-parts";
 import { loadIcons, type LabelIcon } from "@/lib/label-icons";
@@ -39,13 +41,17 @@ import { createGenericParts } from "./actions";
 // "Generic part": pick a family (fasteners, connectors), a type and its
 // parameters (src/lib/generic-parts.ts). One value of the range parameter
 // (length, pin count) fills the part form; several — only offered for a new
-// part — create a part each right away.
+// part — create a part each right away. `initial` is the choice the part was
+// made from (parts.generic); the dialog opens on it, so editing a screw's
+// material is a change of one select.
 export function GenericPartDialog({
   onFill,
   allowRange,
+  initial,
 }: {
-  onFill: (part: GeneratedPart) => void;
+  onFill: (part: GeneratedPart, spec: GenericSpec) => void;
   allowRange: boolean;
+  initial: GenericSpec | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -66,6 +72,23 @@ export function GenericPartDialog({
     loadIcons().then((all) => setIcons(new Map(all.map((i) => [i.id, i]))));
   }, [open, icons]);
   const iconsFor = (ids: string[]) => ids.flatMap((id) => icons?.get(id) ?? []);
+  // A stored choice the wizard can't offer any more (a renamed option): the
+  // dialog says so and starts from defaults rather than guessing.
+  const restored = initial && resolveSpec(initial);
+  const stale = initial !== null && !restored;
+
+  // Each opening starts on the part's stored choice; without one, the last
+  // choice made in this form is kept.
+  function changeOpen(next: boolean) {
+    if (next && initial && restored) {
+      const range = rangeParam(restored.type.params(restored.values));
+      setFamilyId(initial.family);
+      setTypeIds((prev) => ({ ...prev, [initial.family]: initial.type }));
+      setRawValues(restored.values);
+      setRanges(range ? { [range.id]: [restored.values[range.id]] } : {});
+    }
+    setOpen(next);
+  }
 
   const family = GENERIC_FAMILIES.find((f) => f.id === familyId) ?? GENERIC_FAMILIES[0];
   const type = family.types.find((t) => t.id === typeIds[family.id]) ?? family.types[0];
@@ -106,7 +129,8 @@ export function GenericPartDialog({
 
   function fill() {
     if (!single || "error" in single) return;
-    onFill(single);
+    const chosenValues = range ? { ...values, [range.id]: chosen[0] } : values;
+    onFill(single, specFor(family.id, type, chosenValues));
     setOpen(false);
   }
 
@@ -130,11 +154,11 @@ export function GenericPartDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline" size="sm">
           <Shapes className="size-4" />
-          Generic part
+          {restored ? "Edit generic part" : "Generic part"}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-xl">
@@ -143,7 +167,14 @@ export function GenericPartDialog({
           <DialogDescription>
             {family.description}
             {allowRange && range && " Pick several values to create one part each."}
+            {restored && " Fields you edited by hand are kept."}
           </DialogDescription>
+          {stale && (
+            <p className="text-sm text-muted-foreground">
+              This part&apos;s saved wizard choice no longer matches the options here, so the wizard starts from
+              defaults.
+            </p>
+          )}
         </DialogHeader>
         <Tabs value={family.id} onValueChange={setFamilyId}>
           <TabsList className="w-full">

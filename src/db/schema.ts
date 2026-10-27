@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { UserRole } from "@/lib/roles";
+import type { GenericSpec } from "@/lib/generic-parts";
 import type { PartAttribute } from "@/lib/part-attributes";
 import type { MovementKind, Tracking } from "@/lib/stock";
 import type { LabelTemplate } from "@/lib/label-template";
@@ -385,6 +386,10 @@ export const parts = pgTable(
     // image; "" = none.
     icon: text("icon").notNull().default(""),
     attributes: jsonb("attributes").$type<PartAttribute[]>().notNull().default([]),
+    // The "Generic part" wizard choice the part was made from ({ family,
+    // type, values }, src/lib/generic-parts.ts), so editing reopens the
+    // wizard on it; null = not made with the wizard.
+    generic: jsonb("generic").$type<GenericSpec>(),
     notes: text("notes").notNull().default(""),
     createdBy: text("created_by").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),

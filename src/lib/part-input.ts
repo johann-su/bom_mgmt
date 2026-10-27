@@ -1,3 +1,4 @@
+import { parseGenericSpec, type GenericSpec } from "@/lib/generic-parts";
 import { isIconId } from "@/lib/label-icons";
 import { normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import { isTracking, type Tracking } from "@/lib/stock";
@@ -14,6 +15,7 @@ export type PartInput = {
   orderUrls: string[];
   icon: string;
   attributes: PartAttribute[];
+  generic: GenericSpec | null;
   notes: string;
 };
 
@@ -60,6 +62,8 @@ export function parsePartInput(raw: Record<string, unknown>): PartInput | { erro
     orderUrls: orderUrls.urls,
     icon: isIconId(icon) ? icon : "",
     attributes: normalizeAttributes(raw.attributes),
+    // Like the icon, set by the wizard, not typed: a malformed one is dropped.
+    generic: parseGenericSpec(raw.generic),
     notes: text("notes", 10000),
   };
 }

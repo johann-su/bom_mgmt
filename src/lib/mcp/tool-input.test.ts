@@ -71,6 +71,7 @@ const STORED: StoredPart = {
     { key: "Package", value: "DIP-8" },
     { key: "Supply", value: "4.5–16 V" },
   ],
+  generic: null,
   notes: "",
 };
 

@@ -49,6 +49,29 @@ export type RangeParam = {
 export type GenericParam = SelectParam | RangeParam;
 export type GenericValues = Record<string, string>;
 
+/**
+ * The wizard choice a part was made from, stored on the part (parts.generic)
+ * so editing reopens the wizard on it. `values` holds one value per parameter
+ * the type offered, the range parameter included ("length": "8"). Ids are
+ * stored data: renaming a type, option value or parameter id orphans the
+ * specs that use it (resolveSpec then reports them stale).
+ */
+export type GenericSpec = { family: string; type: string; values: GenericValues };
+
+/** A stored or submitted spec's shape, or null if it isn't one. Doesn't
+ *  check that the ids exist — a stale spec is kept, not dropped. */
+export function parseGenericSpec(raw: unknown): GenericSpec | null {
+  if (!raw || typeof raw !== "object") return null;
+  const { family, type, values } = raw as Record<string, unknown>;
+  const id = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 100;
+  if (!id(family) || !id(type) || !values || typeof values !== "object" || Array.isArray(values)) return null;
+  const entries = Object.entries(values);
+  if (entries.length > 20 || !entries.every(([k, v]) => id(k) && typeof v === "string" && v.length <= 100)) {
+    return null;
+  }
+  return { family, type, values: Object.fromEntries(entries) as GenericValues };
+}
+
 export type GenericType = {
   id: string;
   label: string; // tile caption: "Socket head cap screw", "JST XH"
@@ -105,29 +128,31 @@ export function sortRange(range: string[]): string[] {
  * One part per range value (or a single part when the type has no range
  * parameter), for creating a whole range at once. Each value goes through the
  * parameter's own parse, so this is safe on untrusted input; any invalid
- * value or spec errors.
+ * value or spec errors. Each part comes with the values it was generated
+ * from, for its stored spec (specFor).
  */
 export function generateRange(
   type: GenericType,
   values: GenericValues,
   range: string[],
-): GeneratedPart[] | { error: string } {
+): { part: GeneratedPart; values: GenericValues }[] | { error: string } {
   const resolved = resolveValues(type, values);
   const param = rangeParam(resolved.params);
   if (!param) {
     const part = type.generate(resolved.values);
-    return "error" in part ? part : [part];
+    return "error" in part ? part : [{ part, values: resolved.values }];
   }
   const parsed = range.map((raw) => param.parse(String(raw)));
   if (parsed.some((v) => v === null)) return { error: `Invalid ${param.label.toLowerCase()}` };
   const chosen = sortRange(parsed as string[]);
   if (chosen.length === 0) return { error: `Pick at least one ${param.label.toLowerCase()}` };
   if (chosen.length > 50) return { error: "Pick at most 50 at once" };
-  const out: GeneratedPart[] = [];
+  const out: { part: GeneratedPart; values: GenericValues }[] = [];
   for (const value of chosen) {
-    const part = type.generate({ ...resolved.values, [param.id]: value });
+    const each = { ...resolved.values, [param.id]: value };
+    const part = type.generate(each);
     if ("error" in part) return part;
-    out.push(part);
+    out.push({ part, values: each });
   }
   return out;
 }
@@ -138,4 +163,32 @@ export function parseCount(raw: string, min: number, max: number): string | null
   if (!/^\d+$/.test(value)) return null;
   const n = Number(value);
   return n >= min && n <= max ? String(n) : null;
+}
+
+/** The spec to store for a generated part: just the values of the
+ *  parameters `type` offers for them, so stray keys left over from other
+ *  types in the wizard aren't kept. `values` must hold the range value. */
+export function specFor(family: string, type: GenericType, values: GenericValues): GenericSpec {
+  const ids = type.params(values).map((p) => p.id);
+  return {
+    family,
+    type: type.id,
+    values: Object.fromEntries(ids.filter((id) => id in values).map((id) => [id, values[id]])),
+  };
+}
+
+/**
+ * Every combination of select values a type offers, following how one choice
+ * changes the others, without the range value. Skips combinations the wizard
+ * can't reach (a later choice rules an earlier one out: a male crimp pin with
+ * make "JST"). For tests and the spec backfill, not the UI.
+ */
+export function* selectCombinations(type: GenericType, values: GenericValues = {}): Generator<GenericValues> {
+  const open = type.params(values).find((p) => p.kind === "select" && !(p.id in values));
+  if (open && open.kind === "select") {
+    for (const option of open.options) yield* selectCombinations(type, { ...values, [open.id]: option.value });
+    return;
+  }
+  const resolved = resolveValues(type, values).values;
+  if (Object.keys(values).every((key) => resolved[key] === values[key])) yield values;
 }

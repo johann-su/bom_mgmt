@@ -18,6 +18,9 @@ import { subtreeIds } from "@/lib/location-tree";
 import { recentMovements } from "@/lib/movement-queries";
 import { listParts, stockLocationsByPart } from "@/lib/part-queries";
 import { createPart, changeStock, deletePart, moveStock, updatePart } from "@/lib/part-mutations";
+import { createGenericParts } from "@/lib/generic-part-mutations";
+import { suggestCategory } from "@/lib/category-suggest";
+import { rangeParam } from "@/lib/generic-parts";
 import { ensureCategories, runPartImport } from "@/lib/part-import";
 import { guessPartMapping, PART_CSV_FIELDS, readPartCsv } from "@/lib/part-csv";
 import {
@@ -52,6 +55,17 @@ import {
   UNSORTED_REF,
   type PartPatch,
 } from "@/lib/mcp/tool-input";
+import {
+  applyGenericChoice,
+  describeGenericType,
+  genericCatalogue,
+  generatedPartView,
+  readGenericChoice,
+  readGenericValues,
+  readRange,
+  requireGenericType,
+  resolveStrict,
+} from "@/lib/mcp/generic-input";
 
 const INSTRUCTIONS_COMMON = `This server is a workshop parts inventory: parts (with MPN, manufacturer, category, unit, attributes, order link), the storage locations they sit in, stock counts per location, and bills of materials (BOMs).
 
@@ -65,6 +79,7 @@ const INSTRUCTIONS_READ_ONLY = `
 
 const INSTRUCTIONS_WRITE = `
 - Locations themselves are managed in the app, not here.
+- Standard fasteners and connectors (ISO/DIN screws, nuts, washers, heat-set inserts; JST, Dupont, pin headers) are "generic parts": create them with create_generic_parts, not create_part, so name, designation and specs come out in the app's format and match existing ones. describe_generic_part lists the types and their options. To change one (another material, length), pass \`generic\` to update_part.
 - Find parts with search_parts before creating one — a part with the same MPN usually already exists. import_parts matches on MPN, then name, and updates instead of duplicating.
 - Every stock change is logged in the part's history with your note; prefer a short note saying why ("used for X", "stock-take").
 - For a large or uncertain import, call import_parts with dryRun: true first and show the user the preview.
@@ -140,6 +155,8 @@ async function partDetail(id: string, { movements = 10 } = {}) {
     description: part.description,
     notes: part.notes,
     attributes: part.attributes,
+    // The generic-part choice it was made from (describe_generic_part), or null.
+    generic: part.generic,
     orderUrls: part.orderUrls,
     tracking,
     totalStock: stockValue(tracking, total),
@@ -352,6 +369,39 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       run: async (args) => partDetail(requireUuid(args, "partId", PART_ID_HINT), { movements: 20 }),
     },
     {
+      name: "describe_generic_part",
+      title: "Describe generic part",
+      description:
+        "The generic-part catalogue: standard parts the app derives completely from a few choices (ISO/DIN fasteners, JST/Dupont connectors, pin headers). Without arguments, lists the families and types. With family + type, returns the type's parameters — select options and the range parameter (length, pin count) — resolved for `values` (defaults fill what you leave out; one choice can change another's options), plus a preview of the part(s) `range` would make. Values may be given by option value or label.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          family: { type: "string", description: 'Family id, e.g. "fasteners", "connectors".' },
+          type: { type: "string", description: 'Type id within the family, e.g. "socket-cap", "jst-xh".' },
+          values: {
+            type: "object",
+            additionalProperties: { type: ["string", "number"] },
+            description: 'Parameter id → value, e.g. {"size": "M3", "material": "a2"}.',
+          },
+          range: {
+            type: "array",
+            items: { type: ["string", "number"] },
+            description: "Range values to preview (lengths in mm, pin counts).",
+          },
+        },
+      },
+      annotations: READ_ONLY,
+      run: async (args) => {
+        const family = optionalString(args, "family");
+        const type = optionalString(args, "type");
+        if (!family || !type) {
+          if (type) throw new InvalidParamsError('Pass "family" together with "type"');
+          return { families: genericCatalogue() };
+        }
+        return describeGenericType(family, requireGenericType(family, type), readGenericValues(args.values), args.range);
+      },
+    },
+    {
       name: "list_locations",
       title: "List locations",
       description:
@@ -562,10 +612,72 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
       },
     },
     {
+      name: "create_generic_parts",
+      title: "Create generic parts",
+      description:
+        "Creates standard parts from the generic-part catalogue (see describe_generic_part), one per `range` value — e.g. M3 socket head screws in 6, 8 and 10 mm. Name, designation (MPN), description, specs, icon and category are generated exactly as the app's \"Generic part\" wizard does, and the choice is stored on each part. Parts that already exist (same name or MPN) are skipped and returned under `existing`, so this is safe to repeat. Generic parts track stock as a level; pass location + level to stock the new ones. With dryRun: true nothing is written.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          family: { type: "string", description: "Family id from describe_generic_part." },
+          type: { type: "string", description: "Type id from describe_generic_part." },
+          values: {
+            type: "object",
+            additionalProperties: { type: ["string", "number"] },
+            description: "Parameter id → value (option value or label); omitted ones get their default.",
+          },
+          range: {
+            type: "array",
+            items: { type: ["string", "number"] },
+            maxItems: 50,
+            description: "One part per value of the type's range parameter (lengths in mm, pin counts). Omit for types without one.",
+          },
+          location: { type: "string", description: 'Location code to stock the new parts in, or "unsorted".' },
+          level: { type: "string", description: 'Initial level there: "Plenty", "Low" or "Empty".' },
+          dryRun: { type: "boolean", default: false, description: "Preview only; nothing is written." },
+        },
+        required: ["family", "type"],
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+      run: async (args) => {
+        const family = requireString(args, "family");
+        const type = requireGenericType(family, requireString(args, "type"));
+        const given = readGenericValues(args.values);
+        const { values, params } = resolveStrict(type, given);
+        const range = rangeParam(params);
+        const chosen = readRange(range, given, args.range);
+        if (range && chosen.length === 0) {
+          throw new InvalidParamsError(`Pass at least one ${range.label.toLowerCase()} in "range"`);
+        }
+        const location = optionalString(args, "location");
+        const dryRun = optionalBoolean(args, "dryRun", false);
+        const result = check(
+          await createGenericParts(userId, {
+            family,
+            type,
+            values,
+            range: chosen,
+            dryRun,
+            initialLocationId: location ? resolveStockPlace(await loadLocationOptions(), location) : null,
+            initialLevel: optionalString(args, "level"),
+          }),
+        );
+        const existing = (result.existing ?? []).map((p) => ({ ...p, url: partUrl(p.id) }));
+        if (dryRun) {
+          return { dryRun, category: result.category, wouldCreate: (result.planned ?? []).map(generatedPartView), existing };
+        }
+        return {
+          category: result.category,
+          created: (result.created ?? []).map((p) => ({ ...p, url: partUrl(p.id) })),
+          existing,
+        };
+      },
+    },
+    {
       name: "update_part",
       title: "Update part",
       description:
-        "Edits a part. Only the fields you pass change; everything else is kept. `attributes` are merged by key (existing keys get the new value, new keys are added); list keys in `removeAttributes` to delete them. Pass null for category or minStock to clear it. Stock is changed with adjust_stock, not here.",
+        "Edits a part. Only the fields you pass change; everything else is kept. `attributes` are merged by key (existing keys get the new value, new keys are added); list keys in `removeAttributes` to delete them. Pass null for category or minStock to clear it. Stock is changed with adjust_stock, not here. `generic` re-runs the generic-part wizard (describe_generic_part) — e.g. the same screw in black oxide: name, MPN, description and specs are regenerated, except fields edited by hand since the part was generated (listed in `keptEdited`); text fields you pass in the same call still win.",
       inputSchema: {
         type: "object",
         properties: {
@@ -573,14 +685,33 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
           ...PART_FIELD_PROPERTIES,
           attributes: ATTRIBUTES_SCHEMA,
           removeAttributes: { type: "array", items: { type: "string" }, description: "Attribute keys to remove." },
+          generic: {
+            type: "object",
+            description:
+              'The generic-part choice to regenerate the part from: {"family", "type", "values"}, with exactly one range value in values (e.g. "length": "8"). get_part shows the current one.',
+            properties: {
+              family: { type: "string" },
+              type: { type: "string" },
+              values: { type: "object", additionalProperties: { type: ["string", "number"] } },
+            },
+            required: ["family", "type"],
+          },
         },
         required: ["partId"],
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
       run: async (args) => {
         const id = requireUuid(args, "partId", PART_ID_HINT);
-        const existing = await requirePart(id);
-        const category = readCategory(args);
+        const stored = await requirePart(id);
+        const regenerated = args.generic === undefined ? null : applyGenericChoice(stored, readGenericChoice(args.generic, "generic"));
+        const existing = regenerated?.part ?? stored;
+        let category = readCategory(args);
+        // Like the form: a generated part files itself only if it has no category yet.
+        if (regenerated && category === undefined && !stored.categoryId) {
+          const cats = await db.select({ id: categories.id, name: categories.name }).from(categories);
+          const suggestion = suggestCategory(regenerated.category, cats);
+          if (suggestion) category = "id" in suggestion ? cats.find((c) => c.id === suggestion.id)!.name : suggestion.name;
+        }
         const patch: PartPatch = {
           ...readTextFields(args),
           minStock: readMinStock(args),
@@ -591,7 +722,11 @@ export function inventoryTools({ userId, allowWrites }: { userId: string; allowW
           ...(category !== undefined ? { categoryId: await categoryIdFor(category) } : {}),
         };
         check(await updatePart(id, partFormValues(existing, patch)));
-        return { updated: true, part: await partDetail(id, { movements: 0 }) };
+        return {
+          updated: true,
+          ...(regenerated?.kept.length ? { keptEdited: regenerated.kept } : {}),
+          part: await partDetail(id, { movements: 0 }),
+        };
       },
     },
     {

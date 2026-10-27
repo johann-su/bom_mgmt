@@ -2,21 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import icons from "@/lib/label-icons.json";
 import { GENERIC_FAMILIES } from "@/lib/generic-families";
-import { rangeParam, resolveValues, type GenericParam, type GenericValues } from "@/lib/generic-parts";
+import { rangeParam, selectCombinations } from "@/lib/generic-parts";
 
 const known = new Set(icons.map((i) => i.id));
-
-// Every combination of select values a type offers (following how one choice
-// changes the others), with the first range option filled in.
-function* combinations(params: (v: GenericValues) => GenericParam[], values: GenericValues = {}): Generator<GenericValues> {
-  const open = params(values).find((p) => p.kind === "select" && !(p.id in values));
-  if (open && open.kind === "select") {
-    for (const option of open.options) yield* combinations(params, { ...values, [open.id]: option.value });
-    return;
-  }
-  const range = rangeParam(params(values));
-  yield range ? { ...values, [range.id]: range.options[0] } : values;
-}
 
 test("every generic type generates for every option it offers, with real icons and no holes", () => {
   // Guards the data tables of every family: a missing dimension shows up as
@@ -25,8 +13,10 @@ test("every generic type generates for every option it offers, with real icons a
     for (const type of family.types) {
       assert.ok(known.has(type.icon), `${type.id} tile icon ${type.icon}`);
       let count = 0;
-      for (const values of combinations(type.params)) {
-        const part = type.generate(resolveValues(type, values).values);
+      for (const selects of selectCombinations(type)) {
+        const range = rangeParam(type.params(selects));
+        const values = range ? { ...selects, [range.id]: range.options[0] } : selects;
+        const part = type.generate(values);
         const label = `${type.id} ${JSON.stringify(values)}`;
         if ("error" in part) assert.fail(`${label}: ${part.error}`);
         count++;

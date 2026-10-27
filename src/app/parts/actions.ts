@@ -1,14 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, inArray, or, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { categories, files, parts } from "@/db/schema";
+import { files, parts } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { genericType } from "@/lib/generic-families";
-import { generateRange } from "@/lib/generic-parts";
 import { MAX_UPLOAD_BYTES, remoteFilename } from "@/lib/file-kind";
 import * as mutations from "@/lib/part-mutations";
+import { createGenericParts as createGeneric } from "@/lib/generic-part-mutations";
 import { storePartFiles } from "@/lib/part-files";
 import { ensureCategories } from "@/lib/part-import";
 import { parseOrderUrl } from "@/lib/part-input";
@@ -16,7 +16,6 @@ import { fetchProductInfo, fetchRemoteFile } from "@/lib/product-fetch";
 import type { ProductInfo } from "@/lib/product-page";
 import { blobStore } from "@/lib/storage";
 import { logger } from "@/lib/logger";
-import { suggestCategory } from "./product-fill";
 
 type Result = { error?: string };
 
@@ -48,13 +47,7 @@ async function resolveNewCategory<T extends Record<string, unknown>>(
   return { values: { ...raw, categoryId: ids.get(name.toLowerCase()) ?? null } };
 }
 
-/**
- * Creates one generic part per range value — a screw per length, a housing
- * per pin count (src/lib/generic-parts.ts) — filed under an existing matching
- * category or a new one. The parts are generated here from the spec, not
- * taken from the client. Parts that already exist (same name or MPN) are
- * skipped, so re-running a range only adds what's new.
- */
+/** The dialog's "Create N parts" (src/lib/generic-part-mutations.ts). */
 export async function createGenericParts(input: {
   family: string;
   type: string;
@@ -65,47 +58,13 @@ export async function createGenericParts(input: {
   if (!session) return { error: "You must be signed in" };
   const type = genericType(String(input.family), String(input.type));
   if (!type) return { error: "Unknown part type" };
-  const values = Object.fromEntries(
-    Object.entries(input.values ?? {}).map(([key, value]) => [key, String(value)]),
-  );
-  const generated = generateRange(type, values, Array.isArray(input.range) ? input.range.map(String) : []);
-  if ("error" in generated) return generated;
-
-  const lower = (values: string[]) => values.filter(Boolean).map((v) => v.toLowerCase());
-  const names = lower(generated.map((p) => p.name));
-  const mpns = lower(generated.map((p) => p.mpn));
-  const existing = await db
-    .select({ name: parts.name, mpn: parts.mpn })
-    .from(parts)
-    .where(
-      or(
-        inArray(sql`lower(${parts.name})`, names),
-        mpns.length ? inArray(sql`lower(${parts.mpn})`, mpns) : undefined,
-      ),
-    );
-  const taken = new Set(lower(existing.flatMap((p) => [p.name, p.mpn])));
-  const fresh = generated.filter((p) => !taken.has(p.name.toLowerCase()) && !taken.has(p.mpn.toLowerCase()));
-  if (fresh.length === 0) return { created: 0, skipped: generated.length };
-
-  const cats = await db.select({ id: categories.id, name: categories.name }).from(categories);
-  const suggestion = suggestCategory(fresh[0].category, cats);
-  let categoryId: string | null = null;
-  if (suggestion && "id" in suggestion) categoryId = suggestion.id;
-  else if (suggestion) {
-    const ids = await db.transaction((tx) => ensureCategories(tx, [suggestion.name]));
-    categoryId = ids.get(suggestion.name.toLowerCase()) ?? null;
-    revalidatePath("/settings/categories");
-  }
-
-  let created = 0;
-  for (const part of fresh) {
-    // Generic parts are bulk commodities (screws, crimp housings) — kept as a
-    // level rather than counted.
-    const result = await mutations.createPart(session.user.id, { ...part, categoryId, tracking: "level" });
-    if (result.error) return { error: result.error, created };
-    created++;
-  }
-  return { created, skipped: generated.length - created };
+  const result = await createGeneric(session.user.id, {
+    family: String(input.family),
+    type,
+    values: Object.fromEntries(Object.entries(input.values ?? {}).map(([key, value]) => [key, String(value)])),
+    range: Array.isArray(input.range) ? input.range.map(String) : [],
+  });
+  return { error: result.error, created: result.created?.length, skipped: result.existing?.length };
 }
 
 /**

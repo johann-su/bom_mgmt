@@ -13,7 +13,13 @@ import {
 } from "@/lib/generic-parts";
 import type { PartAttribute } from "@/lib/part-attributes";
 
-type JstPiece = "housing" | "header" | "header-ra" | "crimp";
+// The pieces JST makes. Their XH/PH/… systems are wire-to-board: the cable
+// housing takes female contacts and the board header supplies the pins.
+type GenuinePiece = "housing" | "header" | "header-ra" | "crimp";
+// Pieces only clones make: male pins and a plug housing for them, to join two
+// cables (kits sold as "JST XH male/female"). They have no JST number.
+type ClonePiece = "plug" | "crimp-m";
+type JstPiece = GenuinePiece | ClonePiece;
 
 type JstSeries = {
   id: string;
@@ -26,7 +32,7 @@ type JstSeries = {
   wire: string; // what the crimp contact takes
   smd: boolean; // headers are surface-mount (SH, GH)
   /** JST part numbers by piece, for a pin count (the crimp ignores it). */
-  mpn: Record<JstPiece, (pins: number) => string>;
+  mpn: Record<GenuinePiece, (pins: number) => string>;
 };
 
 // Two-digit pin counts in the SH/GH numbering: SHR-04V-S-B, BM04B-SRSS-TB.
@@ -164,12 +170,17 @@ const MAKE_PARAM: GenericParam = {
   ],
 };
 
-const JST_PIECES: { value: JstPiece; label: string }[] = [
+const JST_PIECES: { value: GenuinePiece; label: string }[] = [
   { value: "housing", label: "Housing (cable side)" },
   { value: "header", label: "Header, top entry" },
   { value: "header-ra", label: "Header, side entry" },
-  { value: "crimp", label: "Crimp contact" },
+  { value: "crimp", label: "Crimp contact, female" },
 ];
+const CLONE_PIECES: { value: ClonePiece; label: string }[] = [
+  { value: "plug", label: "Plug housing, male (wire-to-wire)" },
+  { value: "crimp-m", label: "Crimp contact, male (wire-to-wire)" },
+];
+const isCrimp = (piece: string) => piece === "crimp" || piece === "crimp-m";
 
 function jstType(series: JstSeries): GenericType {
   const label = `JST ${series.name}`;
@@ -180,21 +191,29 @@ function jstType(series: JstSeries): GenericType {
     title: `${label} wire-to-board connector, ${series.pitch} mm pitch`,
     icon: `connector/faces/${series.id}`,
     params: (values) => [
-      { kind: "select", id: "piece", label: "Piece", options: JST_PIECES },
+      {
+        kind: "select",
+        id: "piece",
+        label: "Piece",
+        // Genuine JST has no male crimps or plug housings.
+        options: values.make === "jst" ? JST_PIECES : [...JST_PIECES, ...CLONE_PIECES],
+      },
       MAKE_PARAM,
-      ...(values.piece === "crimp" ? [] : [pinsParam(series.minPins, series.maxPins)]),
+      ...(isCrimp(values.piece) ? [] : [pinsParam(series.minPins, series.maxPins)]),
     ],
     generate: (values) => generateJst(series, values.piece as JstPiece, values.make, values.pins),
   };
 }
 
 function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: string | undefined): GeneratedPart | { error: string } {
-  if (!JST_PIECES.some((p) => p.value === piece)) return { error: "Pick a piece" };
-  const pins = piece === "crimp" ? 0 : Number(parseCount(rawPins ?? "", series.minPins, series.maxPins));
-  if (piece !== "crimp" && !pins) return { error: `Pick a pin count (${series.minPins}–${series.maxPins})` };
+  const clone = CLONE_PIECES.some((p) => p.value === piece);
+  if (!clone && !JST_PIECES.some((p) => p.value === piece)) return { error: "Pick a piece" };
   const genuine = make === "jst";
+  if (clone && genuine) return { error: "JST doesn't make that piece — pick Generic" };
+  const pins = isCrimp(piece) ? 0 : Number(parseCount(rawPins ?? "", series.minPins, series.maxPins));
+  if (!isCrimp(piece) && !pins) return { error: `Pick a pin count (${series.minPins}–${series.maxPins})` };
   const label = `JST ${series.name}`;
-  const mpn = series.mpn[piece](pins);
+  const mpn = clone ? "" : series.mpn[piece as GenuinePiece](pins);
   const mount = series.smd ? "SMD" : "Through-hole";
   const headers = `${series.mpn.header(pins)} / ${series.mpn["header-ra"](pins)}`;
   const intro = `${label}-series wire-to-board`;
@@ -231,10 +250,32 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ]),
     },
     crimp: {
-      name: `${label} crimp contact`,
+      name: `${label} crimp contact, female`,
       description: `${intro} crimp contact (socket) for ${label} housings, ${series.wire} (${compat}).`,
       icon: "connector/variants/crimp-f",
-      extra: attrs([["Wire", series.wire]]),
+      extra: attrs([
+        ["Contact", "Female (socket)"],
+        ["Wire", series.wire],
+      ]),
+    },
+    plug: {
+      name: `${label} plug housing ${pins}-pin, male`,
+      description: `${label}-compatible wire-to-wire plug housing for male crimp pins, ${pins} positions, ${series.pitch} mm pitch. Mates with a ${series.mpn.housing(pins)} housing fitted with ${series.mpn.crimp(0)} contacts. A clone part: JST's own ${label} has no wire-to-wire plug.`,
+      icon: "connector/variants/housing-m",
+      extra: attrs([
+        ["Mates with", series.mpn.housing(pins)],
+        ["Contacts", `${label} male crimp pins`],
+        ["Wire", series.wire],
+      ]),
+    },
+    "crimp-m": {
+      name: `${label} crimp contact, male`,
+      description: `${label}-compatible male crimp pin for wire-to-wire plug housings, ${series.wire}. A clone part: JST's own ${label} has no male crimp contact.`,
+      icon: "connector/variants/crimp-m",
+      extra: attrs([
+        ["Contact", "Male (pin)"],
+        ["Wire", series.wire],
+      ]),
     },
   }[piece];
 
@@ -253,7 +294,7 @@ function generateJst(series: JstSeries, piece: JstPiece, make: string, rawPins: 
       ...attrs([
         ["Series", label],
         ["Pitch", mm(series.pitch)],
-        ["Pins", piece !== "crimp" && String(pins)],
+        ["Pins", !isCrimp(piece) && String(pins)],
         ["Rated current", series.current],
         ["Rated voltage", series.voltage],
       ]),

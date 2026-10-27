@@ -7,6 +7,7 @@
 // re-implements validation: parsePartInput and planPartImport still decide
 // what a valid part is.
 
+import type { GenericSpec } from "@/lib/generic-parts";
 import { InvalidParamsError, ToolError } from "@/lib/mcp/protocol";
 import { mergeAttributes, normalizeAttributes, type PartAttribute } from "@/lib/part-attributes";
 import { PART_CSV_FIELDS, type PartCsvField, type PartCsvMapping } from "@/lib/part-csv";
@@ -82,6 +83,7 @@ export type StoredPart = {
   orderUrls: string[];
   icon: string;
   attributes: PartAttribute[];
+  generic: GenericSpec | null; // carried over untouched
   notes: string;
 };
 

@@ -4,8 +4,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { FileText, ImageIcon, Plus, Sparkles, X } from "lucide-react";
-import type { GeneratedPart } from "@/lib/generic-parts";
-import { mergeAttributes, type PartAttribute } from "@/lib/part-attributes";
+import { resolveSpec } from "@/lib/generic-families";
+import type { GeneratedPart, GenericSpec } from "@/lib/generic-parts";
+import type { PartAttribute } from "@/lib/part-attributes";
 import type { LocationOption } from "@/lib/location-tree";
 import { ACCEPTED_UPLOADS } from "@/lib/file-kind";
 import { isNextRedirectError } from "@/lib/utils";
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { LocationPicker } from "@/components/location-picker";
 import { attachShopFiles, createPart, lookupOrderUrl, updatePart } from "./actions";
+import { applyGenerated, GENERATED_FIELDS, type GeneratedField } from "@/lib/generic-fill";
 import { GenericPartDialog } from "./generic-part-dialog";
 import { fillAttributes, shopFiles, suggestCategory, type ShopFile } from "./product-fill";
 import { uploadPartFiles } from "./upload";
@@ -41,6 +43,7 @@ export type PartFormValues = {
   orderUrls: string[];
   icon: string;
   attributes: PartAttribute[];
+  generic: GenericSpec | null;
   notes: string;
 };
 
@@ -56,6 +59,7 @@ const EMPTY: PartFormValues = {
   orderUrls: [],
   icon: "",
   attributes: [],
+  generic: null,
   notes: "",
 };
 
@@ -101,6 +105,9 @@ export function PartForm({
   // photo worth fetching);
   // editing a part keeps whatever it has.
   const [icon, setIcon] = useState(initial.icon);
+  // The wizard choice the part is made from, saved with it so the wizard
+  // reopens on it; kept as stored until the wizard fills again.
+  const [generic, setGeneric] = useState<GenericSpec | null>(initial.generic);
   const [tracking, setTracking] = useState<Tracking>(initial.tracking);
   // First level of a new level/binary part; "unset" = no stock booked yet.
   const [initialLevel, setInitialLevel] = useState("unset");
@@ -126,24 +133,40 @@ export function PartForm({
     return true;
   }
 
-  // A generic part from the wizard: unlike "Fill from link" it replaces the
-  // text fields and its own attributes, since the user just chose it —
-  // picking again (another length) must update the form, not keep the old.
-  function fillFromGeneric(generated: GeneratedPart) {
+  // A generic part from the wizard: unlike "Fill from link" it replaces what
+  // the wizard filled last time, since the user just chose it — picking
+  // again (another material) must update the form. What the user edited
+  // since is kept (applyGenerated), judged against the previous choice
+  // regenerated from its spec.
+  function fillFromGeneric(generated: GeneratedPart, spec: GenericSpec) {
     const form = formRef.current;
     if (!form) return;
-    for (const name of ["name", "description", "manufacturer", "mpn", "unit"] as const) {
-      const input = form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
-      if (input) input.value = generated[name];
+    const input = (name: string) =>
+      form.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+    const restored = generic && resolveSpec(generic);
+    const before = restored && restored.type.generate(restored.values);
+    const previous = before && !("error" in before) ? before : null;
+    const fields = Object.fromEntries(GENERATED_FIELDS.map((name) => [name, input(name)?.value ?? ""]));
+    const result = applyGenerated(
+      { fields: fields as Record<GeneratedField, string>, icon, attributes },
+      previous,
+      generated,
+    );
+    for (const name of GENERATED_FIELDS) {
+      const field = input(name);
+      if (field) field.value = result.fields[name];
     }
     if (categoryId === "none" || categoryId === "new") applyCategory(generated.category);
-    setIcon(generated.icon);
+    setIcon(result.icon);
+    setAttributes(result.attributes);
+    setGeneric(spec);
     // Screws and crimp housings aren't worth counting; a new one defaults to
     // a level (the user can still switch back).
     if (!part) setTracking("level");
-    setAttributes((prev) =>
-      mergeAttributes(prev.filter((a) => a.key.trim() || a.value.trim()), generated.attributes),
-    );
+    if (result.kept.length) {
+      const names = result.kept.map((f) => (f === "mpn" ? "MPN" : f));
+      toast.info(`Kept your edited ${names.join(", ")}`);
+    }
   }
 
   // Reads the shop page behind one order link and fills empty fields from its
@@ -221,6 +244,7 @@ export function PartForm({
       minStock: tracking === "exact" ? form.get("minStock") : (initial.minStock ?? ""),
       orderUrls,
       icon,
+      generic,
       notes: form.get("notes"),
       attributes,
     };
@@ -274,7 +298,7 @@ export function PartForm({
         <CardHeader>
           <CardTitle className="text-base">Part</CardTitle>
           <CardAction>
-            <GenericPartDialog onFill={fillFromGeneric} allowRange={!part} />
+            <GenericPartDialog onFill={fillFromGeneric} allowRange={!part} initial={generic} />
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
