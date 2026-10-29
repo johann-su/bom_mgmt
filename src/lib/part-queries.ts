@@ -2,6 +2,7 @@ import { and, asc, eq, exists, gt, ilike, inArray, isNotNull, isNull, or, sql, t
 import { db } from "@/db";
 import { categories, parts, stock } from "@/db/schema";
 import { STOCK_LEVELS } from "@/lib/stock";
+import { isIconAttribute } from "@/lib/part-attributes";
 
 // Total stock of a part across all locations, as a correlated subquery: the
 // sum for exact parts, the best level for level/binary ones, 0 for untracked
@@ -69,6 +70,8 @@ export async function listParts(filters: {
       minStock: parts.minStock,
       orderUrls: parts.orderUrls,
       icon: parts.icon,
+      attributes: parts.attributes,
+      categoryId: parts.categoryId,
       category: categories.name,
       total: totalStock,
     })
@@ -80,6 +83,50 @@ export async function listParts(filters: {
 }
 
 export type PartListRow = Awaited<ReturnType<typeof listParts>>[number];
+
+// What the parts list's filter pickers offer: every manufacturer and every
+// attribute key with the values it takes, across all parts. Keys and values
+// are grouped case-insensitively (the first spelling wins), matching how the
+// filters compare them (src/lib/part-filters.ts).
+export async function listFilterFacets() {
+  const [manufacturers, attrs] = await Promise.all([
+    db
+      .selectDistinct({ name: parts.manufacturer })
+      .from(parts)
+      .where(sql`${parts.manufacturer} <> ''`),
+    db.execute<{ key: string; value: string }>(
+      sql`select distinct a->>'key' as key, a->>'value' as value
+          from ${parts}, jsonb_array_elements(${parts.attributes}) a`,
+    ),
+  ]);
+  const natural = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+  const keys = new Map<string, { key: string; values: Map<string, string> }>();
+  for (const { key, value } of attrs.rows) {
+    // Picture attributes ("icon-2": "screw/drives/hex") are label plumbing;
+    // the readable spec ("Drive") is what people filter on.
+    if (!key || isIconAttribute(key)) continue;
+    const entry = keys.get(key.toLowerCase()) ?? { key, values: new Map() };
+    keys.set(key.toLowerCase(), entry);
+    if (value && !entry.values.has(value.toLowerCase())) entry.values.set(value.toLowerCase(), value);
+  }
+  return {
+    manufacturers: uniqueSorted(
+      manufacturers.map((m) => m.name),
+      natural,
+    ),
+    attributes: [...keys.values()]
+      .map((e) => ({ key: e.key, values: [...e.values.values()].sort(natural.compare) }))
+      .sort((a, b) => natural.compare(a.key, b.key)),
+  };
+}
+
+export type FilterFacets = Awaited<ReturnType<typeof listFilterFacets>>;
+
+function uniqueSorted(names: string[], collator: Intl.Collator): string[] {
+  const seen = new Map<string, string>();
+  for (const n of names) if (!seen.has(n.toLowerCase())) seen.set(n.toLowerCase(), n);
+  return [...seen.values()].sort(collator.compare);
+}
 
 // Location ids of each part, for the "where is it" column: every location
 // with a stock row — an empty one is still the part's home (where it goes
