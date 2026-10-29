@@ -25,9 +25,9 @@ function part(over: Partial<SortablePart> & { name: string }): SortablePart {
 
 const names = (rows: SortablePart[]) => rows.map((r) => r.name);
 
-test("parsePartsView falls back to name/asc/page 1 on junk input", () => {
+test("parsePartsView falls back to the default category/asc/page 1 on junk input", () => {
   assert.deepEqual(parsePartsView({ sort: "price", dir: "sideways", page: "-3" }), {
-    sort: "name",
+    sort: "category",
     dir: "asc",
     page: 1,
   });
@@ -39,7 +39,9 @@ test("parsePartsView falls back to name/asc/page 1 on junk input", () => {
 });
 
 test("partsViewParams omits defaults so the plain URL stays /parts", () => {
-  assert.deepEqual(partsViewParams({ sort: "name", dir: "asc", page: 1 }), {});
+  assert.deepEqual(partsViewParams({ sort: "category", dir: "asc", page: 1 }), {});
+  // Sorting by name is no longer the default, so it has to be spelled out.
+  assert.deepEqual(partsViewParams({ sort: "name", dir: "asc", page: 1 }), { sort: "name" });
   assert.deepEqual(partsViewParams({ sort: "stock", dir: "desc", page: 2 }), {
     sort: "stock",
     dir: "desc",
