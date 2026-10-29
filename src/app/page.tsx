@@ -31,7 +31,7 @@ export default async function DashboardPage() {
     { label: "Parts", value: partCount.value, icon: Package, href: "/parts" },
     { label: "Locations", value: locationCount.value, icon: MapPin, href: "/locations" },
     { label: "BOMs", value: bomCount.value, icon: ClipboardList, href: "/boms" },
-    { label: "Low stock", value: low.length, icon: TriangleAlert, href: "/parts?low=1" },
+    { label: "Low stock", value: low.length, icon: TriangleAlert, href: "/parts?f=stock:empty,low" },
   ];
 
   return (
