@@ -15,7 +15,9 @@ export const PARTS_PAGE_SIZE = 50;
 
 export type PartsView = { sort: PartSort; dir: SortDir; page: number };
 
-const DEFAULT_VIEW: PartsView = { sort: "name", dir: "asc", page: 1 };
+// Grouped by category (collapsible sections, see groupedPage) unless the
+// user picks another column.
+const DEFAULT_VIEW: PartsView = { sort: "category", dir: "asc", page: 1 };
 
 /** The view from raw search params; anything unknown falls back to the default. */
 export function parsePartsView(params: { sort?: string; dir?: string; page?: string }): PartsView {

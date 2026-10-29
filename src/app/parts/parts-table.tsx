@@ -34,12 +34,9 @@ export function PartsTable({
   // Clickable column headers; without it (search results) they're plain.
   sorting?: { view: PartsView; hrefs: Record<PartSort, string> };
   // Set when sorted by category: the page as collapsible sections
-  // (groupedPage in parts-list-view.ts), used instead of `rows`. The
-  // category column is left out — the section headers say it.
+  // (groupedPage in parts-list-view.ts), used instead of `rows`.
   groups?: { items: GroupedItem<PartsTableRow>[]; all: CategoryGroup[] };
 }) {
-  const grouped = !!groups;
-
   function renderRow(row: PartsTableRow) {
     const low = isLowStock(row.total, row.minStock, row.tracking);
     return (
@@ -55,9 +52,7 @@ export function PartsTable({
             </div>
           </Link>
         </TableCell>
-        {!grouped && (
-          <TableCell className="hidden md:table-cell text-muted-foreground">{row.category ?? "—"}</TableCell>
-        )}
+        <TableCell className="hidden md:table-cell text-muted-foreground">{row.category ?? "—"}</TableCell>
         <TableCell>
           <div className="flex flex-wrap gap-1">
             {row.unsorted && (
@@ -94,7 +89,7 @@ export function PartsTable({
     const Chevron = group.collapsed ? ChevronRight : ChevronDown;
     return (
       <TableRow key={`group:${group.id}`} className="bg-muted/40 hover:bg-muted/60">
-        <TableCell colSpan={3} className="p-0">
+        <TableCell colSpan={4} className="p-0">
           <form action={setCategoriesCollapsed.bind(null, [group.id], !group.collapsed)}>
             <button
               type="submit"
@@ -165,7 +160,7 @@ export function PartsTable({
           <TableHeader>
             <TableRow>
               {sortHead("name", "Part")}
-              {!grouped && sortHead("category", "Category", "hidden md:table-cell")}
+              {sortHead("category", "Category", "hidden md:table-cell")}
               {sortHead("location", "Location")}
               {sortHead("stock", "In stock", "text-right")}
             </TableRow>
