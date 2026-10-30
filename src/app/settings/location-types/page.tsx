@@ -4,7 +4,7 @@ import { locations, locationTypes } from "@/db/schema";
 import { requireSession } from "@/lib/auth";
 import { firstLabel, parsePattern } from "@/lib/label-pattern";
 import { getCodeSeparator } from "@/lib/settings";
-import { loadLocationTypes } from "@/lib/locations";
+import { loadLocations, loadLocationTypes } from "@/lib/locations";
 import { CodeSeparatorForm } from "./code-separator-form";
 import { LocationTypesEditor } from "./location-types-editor";
 
@@ -12,13 +12,15 @@ export const dynamic = "force-dynamic";
 
 export default async function LocationTypesPage() {
   await requireSession();
-  const [rows, grammar, separator] = await Promise.all([
+  const [rows, grammar, all, separator] = await Promise.all([
     db
       .select({
         id: locationTypes.id,
         name: locationTypes.name,
         labelPattern: locationTypes.labelPattern,
         icon: locationTypes.icon,
+        canvasX: locationTypes.canvasX,
+        canvasY: locationTypes.canvasY,
         usage: count(locations.id),
       })
       .from(locationTypes)
@@ -26,10 +28,15 @@ export default async function LocationTypesPage() {
       .groupBy(locationTypes.id)
       .orderBy(asc(locationTypes.position), asc(locationTypes.name)),
     loadLocationTypes(),
+    loadLocations(),
     getCodeSeparator(),
   ]);
   const childTypeIds = new Map(grammar.map((t) => [t.id, t.childTypeIds]));
-  const types = rows.map((t) => ({ ...t, childTypeIds: childTypeIds.get(t.id) ?? null }));
+  const types = rows.map((t) => ({
+    ...t,
+    childTypeIds: childTypeIds.get(t.id) ?? null,
+    labels: all.filter((l) => l.type.id === t.id).map((l) => l.label),
+  }));
   const sampleLabels = types.flatMap((t) => {
     const parsed = parsePattern(t.labelPattern);
     return "error" in parsed ? [] : [firstLabel(parsed)];

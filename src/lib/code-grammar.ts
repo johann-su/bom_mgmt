@@ -24,7 +24,14 @@
 // character class — [MDCLXVI]+ rather than valid numerals only. That can only
 // produce a false alarm, never miss a real collision.
 
-import { formatValue, parsePattern, type CounterToken, type ParsedPattern } from "@/lib/label-pattern";
+import {
+  formatValue,
+  parseLabel,
+  parsePattern,
+  PATTERN_PRESETS,
+  type CounterToken,
+  type ParsedPattern,
+} from "@/lib/label-pattern";
 import { locationPath } from "@/lib/location-tree";
 
 export type GrammarType = {
@@ -312,6 +319,62 @@ export function ambiguityError(ambiguity: Ambiguity, separator: string): string 
     ? `the separator "${separator}" also occurs inside a label pattern — change one of them`
     : "restrict which types each type can hold (Settings → Location types) or use a separator";
   return `Codes would be ambiguous: ${describeAmbiguity(ambiguity)} — ${fix}`;
+}
+
+/**
+ * Label patterns for `typeId` under which the grammar is unambiguous — what to
+ * offer when a change is refused. Candidates, most readable first: the type's
+ * initial as a prefix ("T{N}" → 1T3 inside shelf 1), then the presets. Only
+ * patterns every existing label of the type still fits are offered, so taking
+ * one never means relabeling.
+ */
+export function suggestPatterns(
+  types: GrammarType[],
+  separator: string,
+  typeId: string,
+  existingLabels: string[] = [],
+  limit = 3,
+): string[] {
+  const type = types.find((t) => t.id === typeId);
+  if (!type) return [];
+  const initial = type.name.trim().match(/\p{L}/u)?.[0] ?? "";
+  const candidates = [
+    ...(initial
+      ? [`${initial.toUpperCase()}{N}`, `${initial.toLowerCase()}{N}`, `${initial.toUpperCase()}{NN}`]
+      : []),
+    ...PATTERN_PRESETS.map((p) => p.pattern),
+    "{r}",
+  ];
+  const out: string[] = [];
+  for (const labelPattern of new Set(candidates)) {
+    if (out.length >= limit) break;
+    if (labelPattern === type.labelPattern) continue;
+    if (patternProblem(types, separator, typeId, labelPattern, existingLabels) === null) {
+      out.push(labelPattern);
+    }
+  }
+  return out;
+}
+
+/**
+ * Why `labelPattern` can't be used for `typeId` under this grammar — it
+ * doesn't parse, an existing label wouldn't fit it, or some code would read
+ * two ways — or null when it can.
+ */
+export function patternProblem(
+  types: GrammarType[],
+  separator: string,
+  typeId: string,
+  labelPattern: string,
+  existingLabels: string[] = [],
+): string | null {
+  const parsed = parsePattern(labelPattern);
+  if ("error" in parsed) return parsed.error;
+  const misfit = existingLabels.find((label) => !parseLabel(parsed, label));
+  if (misfit !== undefined) return `The existing label "${misfit}" doesn't fit it`;
+  const next = types.map((t) => (t.id === typeId ? { ...t, labelPattern } : t));
+  const ambiguity = findAmbiguity(next, separator);
+  return ambiguity && `Codes would be ambiguous: ${describeAmbiguity(ambiguity)}`;
 }
 
 // --- the grammar itself ---------------------------------------------------

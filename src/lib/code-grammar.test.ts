@@ -6,6 +6,8 @@ import {
   findAmbiguity,
   grammarViolations,
   observedChildTypes,
+  patternProblem,
+  suggestPatterns,
   type GrammarType,
 } from "@/lib/code-grammar";
 
@@ -120,4 +122,42 @@ test("grammarViolations lists existing parent › child pairs the grammar forbid
   const locations = [loc("s1", null, "Shelf"), loc("b1", "s1", "Box"), loc("i1", "s1", "Bin")];
   const types = [type("Shelf", "{N}", ["Box"]), type("Box", "{A}"), type("Bin", "{a}")];
   assert.deepEqual(grammarViolations(locations, types), ["Shelf › Bin"]);
+});
+
+test("suggestPatterns offers labels that make a refused grammar work (parts-only type under a numbered shelf)", () => {
+  // Shelf {N} › test {N} without a separator: "11" is test 11 or Shelf 1 › test 1.
+  const types = [
+    type("Shelf", "{N}", ["Box", "test"]),
+    type("Box", "{A}", ["Bin"]),
+    type("Bin", "{a}", []),
+    type("test", "{N}", []),
+  ];
+  assert.ok(findAmbiguity(types, ""));
+  const suggestions = suggestPatterns(types, "", "test");
+  assert.ok(suggestions.length > 0);
+  // Its initial as a prefix comes first: Shelf 1 › test T3 reads "1T3".
+  assert.equal(suggestions[0], "T{N}");
+  for (const labelPattern of suggestions) {
+    const fixed = types.map((t) => (t.id === "test" ? { ...t, labelPattern } : t));
+    assert.equal(findAmbiguity(fixed, ""), null, labelPattern);
+  }
+});
+
+test("suggestPatterns skips patterns the type's existing labels wouldn't fit", () => {
+  const types = [type("Shelf", "{N}", ["test"]), type("test", "{N}", [])];
+  // Existing label "7" fits no letter-based pattern, and {NN} needs "07".
+  assert.deepEqual(suggestPatterns(types, "", "test", ["7"]), []);
+});
+
+test("patternProblem says why a pattern can't be used here, or null when it can", () => {
+  // A parts-only type inside a {N} shelf, with no separator.
+  const types = [type("Shelf", "{N}", ["Box", "test"]), type("Box", "{A}", []), type("test", "{N}", [])];
+  // Numbers clash with the shelf's numbers…
+  assert.match(patternProblem(types, "", "test", "{N}") ?? "", /ambiguous/);
+  // …letters don't (they sit next to the shelf's digits)…
+  assert.equal(patternProblem(types, "", "test", "{a}"), null);
+  // …unless an existing label wouldn't fit the new pattern.
+  assert.match(patternProblem(types, "", "test", "{a}", ["7"]) ?? "", /"7"/);
+  // An unparsable pattern is a problem too, not a crash.
+  assert.ok(patternProblem(types, "", "test", "{Q}"));
 });

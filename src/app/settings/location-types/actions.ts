@@ -43,11 +43,21 @@ function validate(input: TypeInput) {
   return { name, labelPattern, icon, parsed, childTypeIds };
 }
 
-// Refuses a type grammar under which some code would have two readings.
+// Refuses a type grammar under which some code would have two readings. (The
+// type dialog runs the same check live and suggests patterns; this is the
+// server-side guarantee.)
 async function grammarError(types: GrammarType[]): Promise<string | null> {
   const separator = await getCodeSeparator();
   const ambiguity = findAmbiguity(types, separator);
   return ambiguity && ambiguityError(ambiguity, separator);
+}
+
+// A grammar change must admit every location that already exists.
+function changeError(all: Awaited<ReturnType<typeof loadLocations>>, next: GrammarType[]) {
+  const violations = grammarViolations(all, next);
+  return violations.length > 0
+    ? `Existing locations don't fit (${violations.slice(0, 3).join(", ")}) — move them out first`
+    : null;
 }
 
 // Replaces a type's child list; null lifts the restriction.
@@ -73,7 +83,10 @@ function revalidate() {
   revalidatePath("/locations", "layout");
 }
 
-export async function createLocationType(input: TypeInput): Promise<Result> {
+// `at` places the new type on the canvas (where a link was dropped).
+export async function createLocationType(
+  input: TypeInput & { at?: { x: number; y: number } },
+): Promise<Result & { id?: string }> {
   if (!(await getSession())) return { error: "You must be signed in" };
   const valid = validate(input);
   if ("error" in valid) return valid;
@@ -87,8 +100,10 @@ export async function createLocationType(input: TypeInput): Promise<Result> {
   ]);
   if (error) return { error };
 
+  const at =
+    input.at && Number.isFinite(input.at.x) && Number.isFinite(input.at.y) ? input.at : null;
   try {
-    await db.transaction(async (tx) => {
+    const id = await db.transaction(async (tx) => {
       const [created] = await tx
         .insert(locationTypes)
         .values({
@@ -96,17 +111,20 @@ export async function createLocationType(input: TypeInput): Promise<Result> {
           labelPattern: valid.labelPattern,
           icon: valid.icon,
           position: types.length,
+          canvasX: at?.x,
+          canvasY: at?.y,
         })
         .returning({ id: locationTypes.id });
       const children = childTypeIds?.map((id) => (id === SELF_TYPE ? created.id : id)) ?? null;
       await saveChildren(tx, created.id, children);
+      return created.id;
     });
+    revalidate();
+    return { id };
   } catch (err) {
     if (isUniqueViolation(err)) return { error: `A type named "${valid.name}" already exists` };
     throw err;
   }
-  revalidate();
-  return {};
 }
 
 export async function updateLocationType(input: TypeInput & { id: string }): Promise<Result> {
@@ -139,13 +157,7 @@ export async function updateLocationType(input: TypeInput & { id: string }): Pro
       ? { ...t, name: valid.name, labelPattern: valid.labelPattern, childTypeIds }
       : t,
   );
-  const violations = grammarViolations(all, next);
-  if (violations.length > 0) {
-    return {
-      error: `Existing locations don't fit (${violations.slice(0, 3).join(", ")}) — move them out first`,
-    };
-  }
-  const error = await grammarError(next);
+  const error = changeError(all, next) ?? (await grammarError(next));
   if (error) return { error };
 
   try {
@@ -161,6 +173,49 @@ export async function updateLocationType(input: TypeInput & { id: string }): Pro
     throw err;
   }
   revalidate();
+  return {};
+}
+
+/**
+ * Sets only which types `id` may hold — the canvas's links. Checked like an
+ * edit in the dialog: existing locations must fit, codes must stay readable.
+ */
+export async function setTypeChildren(input: {
+  id: string;
+  childTypeIds: string[] | null;
+}): Promise<Result> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const [types, all] = await Promise.all([loadLocationTypes(), loadLocations()]);
+  if (!types.some((t) => t.id === input.id)) return { error: "Location type not found" };
+  const known = new Set(types.map((t) => t.id));
+  const childTypeIds = Array.isArray(input.childTypeIds)
+    ? [...new Set(input.childTypeIds)].filter((id) => known.has(id))
+    : null;
+  const next = types.map((t) => (t.id === input.id ? { ...t, childTypeIds } : t));
+  const error = changeError(all, next) ?? (await grammarError(next));
+  if (error) return { error };
+
+  await db.transaction((tx) => saveChildren(tx, input.id, childTypeIds));
+  revalidate();
+  return {};
+}
+
+/** Saves where types sit on the canvas (after a drag or a tidy-up). */
+export async function saveTypePositions(input: {
+  positions: { id: string; x: number; y: number }[];
+}): Promise<Result> {
+  if (!(await getSession())) return { error: "You must be signed in" };
+  const positions = input.positions.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y));
+  await db.transaction(async (tx) => {
+    for (const p of positions) {
+      await tx
+        .update(locationTypes)
+        .set({ canvasX: p.x, canvasY: p.y })
+        .where(eq(locationTypes.id, p.id));
+    }
+  });
+  // Positions are only drawn on this page; no need to refresh the location views.
+  revalidatePath("/settings/location-types");
   return {};
 }
 

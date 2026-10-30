@@ -7,6 +7,7 @@ import {
   jsonb,
   pgTable,
   primaryKey,
+  real,
   text,
   timestamp,
   unique,
@@ -290,6 +291,10 @@ export const locationTypes = pgTable("location_types", {
   }),
   // False = may contain any type; true = only those in location_type_children.
   restrictChildren: boolean("restrict_children").notNull().default(false),
+  // Where the type sits on the settings canvas; null = not placed yet, laid
+  // out automatically (src/lib/type-canvas.ts).
+  canvasX: real("canvas_x"),
+  canvasY: real("canvas_y"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -3,58 +3,26 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
-import { PATTERN_PRESETS, describePattern, nextLabels, parsePattern } from "@/lib/label-pattern";
-import { LOCATION_ICONS } from "@/lib/location-icons";
 import { LocationIcon } from "@/components/location-icon";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ConfirmButton } from "@/components/confirm-button";
-import { SELF_TYPE } from "@/lib/code-grammar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TypeCanvas } from "./type-canvas";
 import {
-  createLocationType,
-  deleteLocationType,
-  moveLocationType,
-  updateLocationType,
-} from "./actions";
+  LocationTypeDialog,
+  preview,
+  type LocationTypeRow,
+  type PendingLink,
+} from "./location-type-dialog";
+import { deleteLocationType, moveLocationType } from "./actions";
 
-export type LocationTypeRow = {
-  id: string;
-  name: string;
-  labelPattern: string;
-  icon: string;
-  usage: number;
-  // Child types it may hold; null = any.
-  childTypeIds: string[] | null;
-};
+export type { LocationTypeRow } from "./location-type-dialog";
 
 function holds(type: LocationTypeRow, types: LocationTypeRow[]): string {
   if (type.childTypeIds === null) return "Holds any type";
   const names = types.filter((t) => type.childTypeIds!.includes(t.id)).map((t) => t.name);
   return names.length ? `Holds ${names.join(", ")}` : "Holds parts only";
-}
-
-function preview(pattern: string): { labels: string[]; description: string } | { error: string } {
-  const parsed = parsePattern(pattern);
-  if ("error" in parsed) return parsed;
-  return { labels: nextLabels(parsed, [], 8), description: describePattern(parsed) };
 }
 
 export function LocationTypesEditor({
@@ -65,6 +33,8 @@ export function LocationTypesEditor({
   separator: string;
 }) {
   const [editing, setEditing] = useState<LocationTypeRow | "new" | null>(null);
+  // A link drawn on the canvas, confirmed (or fixed) in the child's dialog.
+  const [link, setLink] = useState<PendingLink | undefined>();
   const [pending, startTransition] = useTransition();
 
   function run(action: () => Promise<{ error?: string }>, success?: string) {
@@ -75,7 +45,7 @@ export function LocationTypesEditor({
     });
   }
 
-  return (
+  const list = (
     <div className="grid gap-3">
       {types.map((type, index) => {
         const shown = preview(type.labelPattern);
@@ -124,7 +94,10 @@ export function LocationTypesEditor({
                 variant="ghost"
                 size="icon"
                 aria-label="Edit"
-                onClick={() => setEditing(type)}
+                onClick={() => {
+                  setLink(undefined);
+                  setEditing(type);
+                }}
               >
                 <Pencil className="size-4" />
               </Button>
@@ -145,257 +118,60 @@ export function LocationTypesEditor({
       })}
 
       <div>
-        <Button onClick={() => setEditing("new")}>
+        <Button
+          onClick={() => {
+            setLink(undefined);
+            setEditing("new");
+          }}
+        >
           <Plus className="size-4" />
           Add location type
         </Button>
       </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Tabs defaultValue="list">
+        <TabsList>
+          <TabsTrigger value="list">List</TabsTrigger>
+          <TabsTrigger value="canvas">Canvas</TabsTrigger>
+        </TabsList>
+        <TabsContent value="list">{list}</TabsContent>
+        <TabsContent value="canvas">
+          <TypeCanvas
+            types={types}
+            onEdit={(type) => {
+              setLink(undefined);
+              setEditing(type);
+            }}
+            onAdd={() => {
+              setLink(undefined);
+              setEditing("new");
+            }}
+            onLink={(child, pending) => {
+              setLink(pending);
+              setEditing(child ?? "new");
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       {editing && (
         <LocationTypeDialog
           // Remount per target so the form starts from that type's values.
-          key={editing === "new" ? "new" : editing.id}
+          key={`${editing === "new" ? "new" : editing.id}:${link?.parentId ?? ""}`}
           type={editing === "new" ? null : editing}
           types={types}
           separator={separator}
-          onClose={() => setEditing(null)}
+          link={link}
+          onClose={() => {
+            setEditing(null);
+            setLink(undefined);
+          }}
         />
       )}
     </div>
-  );
-}
-
-function LocationTypeDialog({
-  type,
-  types,
-  separator,
-  onClose,
-}: {
-  type: LocationTypeRow | null;
-  types: LocationTypeRow[];
-  separator: string;
-  onClose: () => void;
-}) {
-  const [name, setName] = useState(type?.name ?? "");
-  const [pattern, setPattern] = useState(type?.labelPattern ?? "{N}");
-  const [icon, setIcon] = useState(type?.icon ?? "box");
-  // "Can hold": any type, nothing (a container for parts only), or a picked
-  // list. Without a separator, codes rely on the type grammar, so a new type
-  // starts as holding nothing rather than anything.
-  const initialChildren = type ? type.childTypeIds : separator === "" ? [] : null;
-  const [holds, setHolds] = useState<"any" | "none" | "some">(
-    initialChildren === null ? "any" : initialChildren.length === 0 ? "none" : "some",
-  );
-  // Kept while switching modes so the picks aren't lost on a misclick.
-  const [picked, setPicked] = useState<string[]>(initialChildren ?? []);
-  const children = holds === "any" ? null : holds === "none" ? [] : picked;
-  // The type itself, by id once it has one — so "Box in Box" can be allowed.
-  const selfId = type?.id ?? SELF_TYPE;
-  const childOptions = [
-    ...types.filter((t) => t.id !== type?.id).map((t) => ({ id: t.id, name: t.name })),
-    { id: selfId, name: `${name.trim() || "This type"} (itself)` },
-  ];
-  const [pending, startTransition] = useTransition();
-  const shown = preview(pattern);
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    startTransition(async () => {
-      const input = { name, labelPattern: pattern, icon, childTypeIds: children };
-      const { error } = type
-        ? await updateLocationType({ id: type.id, ...input })
-        : await createLocationType(input);
-      if (error) {
-        toast.error(error);
-        return;
-      }
-      toast.success(type ? "Location type updated" : "Location type added");
-      onClose();
-    });
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <form onSubmit={submit} className="grid gap-4">
-          <DialogHeader>
-            <DialogTitle>{type ? "Edit location type" : "New location type"}</DialogTitle>
-            <DialogDescription>
-              The label pattern decides how locations of this type are named and suggested.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-[1fr_10rem] gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="type-name">Name</Label>
-              <Input
-                id="type-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Shelf, Box, Drawer…"
-                required
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label>Icon</Label>
-              <Select value={icon} onValueChange={setIcon}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(LOCATION_ICONS).map(([key, Icon]) => (
-                    <SelectItem key={key} value={key}>
-                      <Icon className="size-4" />
-                      <span className="capitalize">{key}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="type-pattern">Label pattern</Label>
-            <Input
-              id="type-pattern"
-              value={pattern}
-              onChange={(e) => setPattern(e.target.value)}
-              className="font-mono"
-              spellCheck={false}
-              aria-invalid={"error" in shown}
-              required
-            />
-            <div className="flex flex-wrap gap-1">
-              {PATTERN_PRESETS.map((preset) => (
-                <Button
-                  key={preset.pattern}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPattern(preset.pattern)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
-            {"error" in shown ? (
-              <p className="text-sm text-destructive">{shown.error}</p>
-            ) : (
-              <div className="rounded-md border bg-muted/40 p-3 text-sm">
-                <div className="mb-1.5 text-xs text-muted-foreground">
-                  {shown.description} — first labels:
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {shown.labels.map((label) => (
-                    <Badge key={label} variant="secondary" className="font-mono">
-                      {label}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
-            <details className="text-xs text-muted-foreground">
-              <summary className="cursor-pointer select-none">Pattern syntax</summary>
-              <ul className="mt-2 grid gap-1 pl-1">
-                <li>
-                  <code className="font-mono">{"{A}"}</code> /{" "}
-                  <code className="font-mono">{"{a}"}</code> letters: A … Z, AA, AB …
-                </li>
-                <li>
-                  <code className="font-mono">{"{N}"}</code> numbers;{" "}
-                  <code className="font-mono">{"{NN}"}</code> zero-padded to two digits
-                </li>
-                <li>
-                  <code className="font-mono">{"{R}"}</code> /{" "}
-                  <code className="font-mono">{"{r}"}</code> roman numerals: I, II, III …
-                </li>
-                <li>
-                  Ranges: <code className="font-mono">{"{N:0-9}"}</code>,{" "}
-                  <code className="font-mono">{"{A:A-F}"}</code> — bounded counters roll over,
-                  so <code className="font-mono">{"{A}{N:1-6}"}</code> gives A1 … A6, B1 …
-                </li>
-                <li>
-                  Anything else is literal text, e.g.{" "}
-                  <code className="font-mono">{"S-{NN}"}</code>; write{" "}
-                  <code className="font-mono">{"{{"}</code> for a brace.
-                </li>
-              </ul>
-            </details>
-          </div>
-
-          <div className="grid gap-2">
-            <Label>Can hold</Label>
-            <div className="flex flex-wrap gap-1">
-              {(
-                [
-                  ["any", "Any type"],
-                  ["none", "Nothing"],
-                  ["some", "Only these…"],
-                ] as const
-              ).map(([mode, text]) => (
-                <Button
-                  key={mode}
-                  type="button"
-                  size="sm"
-                  variant={holds === mode ? "secondary" : "outline"}
-                  aria-pressed={holds === mode}
-                  onClick={() => setHolds(mode)}
-                >
-                  {text}
-                </Button>
-              ))}
-            </div>
-            {holds === "none" && (
-              <p className="text-xs text-muted-foreground">
-                A container for parts only — nothing can be put inside it.
-              </p>
-            )}
-            {holds === "some" && (
-              <div className="flex flex-wrap gap-1">
-                {childOptions.map((option) => {
-                  const on = picked.includes(option.id);
-                  return (
-                    <Button
-                      key={option.id}
-                      type="button"
-                      size="sm"
-                      variant={on ? "secondary" : "outline"}
-                      aria-pressed={on}
-                      onClick={() =>
-                        setPicked(on ? picked.filter((id) => id !== option.id) : [...picked, option.id])
-                      }
-                    >
-                      {option.name}
-                    </Button>
-                  );
-                })}
-                {picked.length === 0 && (
-                  <span className="self-center text-xs text-muted-foreground">
-                    Pick at least one type, or choose Nothing.
-                  </span>
-                )}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              {separator === ""
-                ? "Codes have no separator, so this is what keeps them readable: saving checks that no code could be read two ways (like 1›11 vs 11›1)."
-                : "Optional — restrict it to keep the tree tidy. Codes stay unambiguous either way thanks to the separator."}
-            </p>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={pending || "error" in shown || (holds === "some" && picked.length === 0)}
-            >
-              {pending ? "Saving…" : "Save"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
