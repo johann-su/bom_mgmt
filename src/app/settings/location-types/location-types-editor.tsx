@@ -27,6 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ConfirmButton } from "@/components/confirm-button";
+import { SELF_TYPE } from "@/lib/code-grammar";
 import {
   createLocationType,
   deleteLocationType,
@@ -40,7 +41,15 @@ export type LocationTypeRow = {
   labelPattern: string;
   icon: string;
   usage: number;
+  // Child types it may hold; null = any.
+  childTypeIds: string[] | null;
 };
+
+function holds(type: LocationTypeRow, types: LocationTypeRow[]): string {
+  if (type.childTypeIds === null) return "Holds any type";
+  const names = types.filter((t) => type.childTypeIds!.includes(t.id)).map((t) => t.name);
+  return names.length ? `Holds ${names.join(", ")}` : "Holds parts only";
+}
 
 function preview(pattern: string): { labels: string[]; description: string } | { error: string } {
   const parsed = parsePattern(pattern);
@@ -48,7 +57,13 @@ function preview(pattern: string): { labels: string[]; description: string } | {
   return { labels: nextLabels(parsed, [], 8), description: describePattern(parsed) };
 }
 
-export function LocationTypesEditor({ types }: { types: LocationTypeRow[] }) {
+export function LocationTypesEditor({
+  types,
+  separator,
+}: {
+  types: LocationTypeRow[];
+  separator: string;
+}) {
   const [editing, setEditing] = useState<LocationTypeRow | "new" | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -76,7 +91,7 @@ export function LocationTypesEditor({ types }: { types: LocationTypeRow[] }) {
                   {type.labelPattern}
                 </code>
                 <span className="text-xs text-muted-foreground">
-                  {type.usage} location{type.usage === 1 ? "" : "s"}
+                  {type.usage} location{type.usage === 1 ? "" : "s"} · {holds(type, types)}
                 </span>
               </div>
               {"labels" in shown && (
@@ -141,6 +156,8 @@ export function LocationTypesEditor({ types }: { types: LocationTypeRow[] }) {
           // Remount per target so the form starts from that type's values.
           key={editing === "new" ? "new" : editing.id}
           type={editing === "new" ? null : editing}
+          types={types}
+          separator={separator}
           onClose={() => setEditing(null)}
         />
       )}
@@ -150,21 +167,41 @@ export function LocationTypesEditor({ types }: { types: LocationTypeRow[] }) {
 
 function LocationTypeDialog({
   type,
+  types,
+  separator,
   onClose,
 }: {
   type: LocationTypeRow | null;
+  types: LocationTypeRow[];
+  separator: string;
   onClose: () => void;
 }) {
   const [name, setName] = useState(type?.name ?? "");
   const [pattern, setPattern] = useState(type?.labelPattern ?? "{N}");
   const [icon, setIcon] = useState(type?.icon ?? "box");
+  // "Can hold": any type, nothing (a container for parts only), or a picked
+  // list. Without a separator, codes rely on the type grammar, so a new type
+  // starts as holding nothing rather than anything.
+  const initialChildren = type ? type.childTypeIds : separator === "" ? [] : null;
+  const [holds, setHolds] = useState<"any" | "none" | "some">(
+    initialChildren === null ? "any" : initialChildren.length === 0 ? "none" : "some",
+  );
+  // Kept while switching modes so the picks aren't lost on a misclick.
+  const [picked, setPicked] = useState<string[]>(initialChildren ?? []);
+  const children = holds === "any" ? null : holds === "none" ? [] : picked;
+  // The type itself, by id once it has one — so "Box in Box" can be allowed.
+  const selfId = type?.id ?? SELF_TYPE;
+  const childOptions = [
+    ...types.filter((t) => t.id !== type?.id).map((t) => ({ id: t.id, name: t.name })),
+    { id: selfId, name: `${name.trim() || "This type"} (itself)` },
+  ];
   const [pending, startTransition] = useTransition();
   const shown = preview(pattern);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     startTransition(async () => {
-      const input = { name, labelPattern: pattern, icon };
+      const input = { name, labelPattern: pattern, icon, childTypeIds: children };
       const { error } = type
         ? await updateLocationType({ id: type.id, ...input })
         : await createLocationType(input);
@@ -286,11 +323,74 @@ function LocationTypeDialog({
             </details>
           </div>
 
+          <div className="grid gap-2">
+            <Label>Can hold</Label>
+            <div className="flex flex-wrap gap-1">
+              {(
+                [
+                  ["any", "Any type"],
+                  ["none", "Nothing"],
+                  ["some", "Only these…"],
+                ] as const
+              ).map(([mode, text]) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  size="sm"
+                  variant={holds === mode ? "secondary" : "outline"}
+                  aria-pressed={holds === mode}
+                  onClick={() => setHolds(mode)}
+                >
+                  {text}
+                </Button>
+              ))}
+            </div>
+            {holds === "none" && (
+              <p className="text-xs text-muted-foreground">
+                A container for parts only — nothing can be put inside it.
+              </p>
+            )}
+            {holds === "some" && (
+              <div className="flex flex-wrap gap-1">
+                {childOptions.map((option) => {
+                  const on = picked.includes(option.id);
+                  return (
+                    <Button
+                      key={option.id}
+                      type="button"
+                      size="sm"
+                      variant={on ? "secondary" : "outline"}
+                      aria-pressed={on}
+                      onClick={() =>
+                        setPicked(on ? picked.filter((id) => id !== option.id) : [...picked, option.id])
+                      }
+                    >
+                      {option.name}
+                    </Button>
+                  );
+                })}
+                {picked.length === 0 && (
+                  <span className="self-center text-xs text-muted-foreground">
+                    Pick at least one type, or choose Nothing.
+                  </span>
+                )}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {separator === ""
+                ? "Codes have no separator, so this is what keeps them readable: saving checks that no code could be read two ways (like 1›11 vs 11›1)."
+                : "Optional — restrict it to keep the tree tidy. Codes stay unambiguous either way thanks to the separator."}
+            </p>
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" disabled={pending || "error" in shown}>
+            <Button
+              type="submit"
+              disabled={pending || "error" in shown || (holds === "some" && picked.length === 0)}
+            >
               {pending ? "Saving…" : "Save"}
             </Button>
           </DialogFooter>

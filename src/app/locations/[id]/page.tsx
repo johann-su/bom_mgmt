@@ -11,6 +11,7 @@ import { loadLocations, loadLocationTypes } from "@/lib/locations";
 import { ancestry, buildTree, describeAll, locationCode, subtreeIds } from "@/lib/location-tree";
 import { partCountsByLocation } from "@/lib/location-stats";
 import { siblingCycle, siblingLabels } from "@/lib/location-siblings";
+import { allowsChild } from "@/lib/code-grammar";
 import { loadPartOptions } from "@/lib/part-options";
 import { firstImages } from "@/lib/part-images";
 import { formatStock } from "@/lib/stock";
@@ -68,6 +69,9 @@ export default async function LocationPage({ params }: Params) {
   const byId = new Map(all.map((l) => [l.id, l]));
   const location = byId.get(id);
   if (!location) notFound();
+  // What may go inside this location, and where it may itself be moved.
+  const typeById = new Map(types.map((t) => [t.id, t]));
+  const childTypes = types.filter((t) => allowsChild(typeById.get(location.type.id) ?? { childTypeIds: null }, t.id));
 
   const details = await db.query.locations.findFirst({
     where: (l, { eq }) => eq(l.id, id),
@@ -172,7 +176,12 @@ export default async function LocationPage({ params }: Params) {
             labelPattern: location.type.labelPattern,
           }}
           locations={options}
-          descendants={[...descendants]}
+          invalidTargets={all
+            .filter((l) => {
+              const parentType = typeById.get(l.type.id);
+              return descendants.has(l.id) || (parentType && !allowsChild(parentType, location.type.id));
+            })
+            .map((l) => l.id)}
         />
       </div>
 
@@ -200,19 +209,21 @@ export default async function LocationPage({ params }: Params) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base">Inside</CardTitle>
-            <AddLocationDialog
-              parentId={id}
-              parentLabel={`${location.type.name} ${location.label}`}
-              types={types}
-              siblingLabels={siblingLabels(all, id)}
-              defaultTypeId={nextTypeId(types, location.type.id)}
-              trigger={
-                <Button size="sm" variant="outline">
-                  <Plus className="size-4" />
-                  Add
-                </Button>
-              }
-            />
+            {childTypes.length > 0 && (
+              <AddLocationDialog
+                parentId={id}
+                parentLabel={`${location.type.name} ${location.label}`}
+                types={childTypes}
+                siblingLabels={siblingLabels(all, id)}
+                defaultTypeId={nextTypeId(types, location.type.id, childTypes)}
+                trigger={
+                  <Button size="sm" variant="outline">
+                    <Plus className="size-4" />
+                    Add
+                  </Button>
+                }
+              />
+            )}
           </CardHeader>
           <CardContent>
             {childTree.length === 0 ? (
@@ -295,11 +306,16 @@ export default async function LocationPage({ params }: Params) {
   );
 }
 
-// The type that usually goes inside this one: the next in the configured
-// order (Shelf → Box → Bin), else the same type.
-function nextTypeId(types: { id: string }[], currentTypeId: string): string | undefined {
+// The type that usually goes inside this one: the next allowed one in the
+// configured order (Shelf → Box → Bin), else the first allowed.
+function nextTypeId(
+  types: { id: string }[],
+  currentTypeId: string,
+  allowed: { id: string }[],
+): string | undefined {
+  const ok = new Set(allowed.map((t) => t.id));
   const index = types.findIndex((t) => t.id === currentTypeId);
-  return types[index + 1]?.id ?? types[index]?.id;
+  return types.slice(index + 1).find((t) => ok.has(t.id))?.id ?? allowed[0]?.id;
 }
 
 function siblingTitle(l: { label: string; name: string; type: { name: string } }) {

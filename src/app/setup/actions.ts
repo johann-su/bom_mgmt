@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { labelTemplates, locations, locationTypes } from "@/db/schema";
+import { labelTemplates, locations, locationTypeChildren, locationTypes } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db-errors";
 import { DEFAULT_TEMPLATES, uniqueName } from "@/lib/label-template";
-import { prepareSetup, type SetupLevel } from "@/lib/setup-plan";
+import { prepareSetup, setupGrammar, type SetupLevel } from "@/lib/setup-plan";
 import { saveCodeSeparator } from "@/lib/settings";
 
 type Result = { error?: string };
@@ -58,6 +58,23 @@ export async function completeSetup(input: {
           })
           .returning({ id: locationTypes.id });
         typeIds.push(type.id);
+      }
+
+      // Level indexes → the new type ids; null (free nesting) needs no rows.
+      for (const [i, rule] of setupGrammar(valid.levels, valid.separator).entries()) {
+        if (rule.childTypeIds === null) continue;
+        await tx
+          .update(locationTypes)
+          .set({ restrictChildren: true })
+          .where(eq(locationTypes.id, typeIds[i]));
+        if (rule.childTypeIds.length > 0) {
+          await tx.insert(locationTypeChildren).values(
+            rule.childTypeIds.map((child) => ({
+              parentTypeId: typeIds[i],
+              childTypeId: typeIds[Number(child)],
+            })),
+          );
+        }
       }
 
       // The plan lists parents before children, so insert level by level and

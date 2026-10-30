@@ -6,13 +6,16 @@
 //
 // The wizard describes a *regular* hierarchy: level 0 is top level, each
 // further level nests inside the previous one, and "count" is how many to
-// create in each parent ("3 shelves × 4 boxes × 6 bins"). Types themselves
-// don't constrain nesting, so the user can grow the tree irregularly later.
+// create in each parent ("3 shelves × 4 boxes × 6 bins"). With a separator
+// the types don't constrain nesting, so the user can grow the tree irregularly
+// later; without one, each level may hold only the next (the type grammar of
+// src/lib/code-grammar.ts), since that's what keeps codes readable.
 
 import { firstLabel, nextLabels, parsePattern, type ParsedPattern } from "@/lib/label-pattern";
 import { LOCATION_ICONS } from "@/lib/location-icons";
 import { CODE_SEPARATOR, duplicateCodes, validateSeparator } from "@/lib/location-tree";
 import { DEFAULT_TEMPLATES, locationVariables, type LabelVariables } from "@/lib/label-template";
+import { ambiguityError, findAmbiguity, type GrammarType } from "@/lib/code-grammar";
 
 export type SetupLevel = {
   name: string;
@@ -134,10 +137,23 @@ export function plannedCodes(plan: PlannedLocation[], separator: string): string
 }
 
 /**
+ * The type grammar the wizard creates, with level indexes as ids: free
+ * nesting with a separator, a chain (each level holds only the next) without.
+ */
+export function setupGrammar(levels: SetupLevel[], separator: string): GrammarType[] {
+  return levels.map((level, i) => ({
+    id: String(i),
+    name: level.name,
+    labelPattern: level.labelPattern,
+    childTypeIds: separator ? null : i + 1 < levels.length ? [String(i + 1)] : [],
+  }));
+}
+
+/**
  * Everything the wizard submits, checked as a whole: the levels, the code
- * separator, and that the starting tree's codes stay unique under it — with
- * no separator, boxes {N} holding bins {N} would make 1›11 and 11›1 both
- * "111".
+ * separator, and that codes stay unique under it — not just the starting
+ * tree's but any the grammar allows later. With no separator, boxes {N}
+ * holding bins {N} would make 1›11 and 11›1 both "111".
  */
 export function prepareSetup(
   input: SetupLevel[],
@@ -148,6 +164,8 @@ export function prepareSetup(
   const sep = validateSeparator(separatorInput);
   if ("error" in sep) return sep;
   const plan = planLocations(valid.levels);
+  const ambiguity = findAmbiguity(setupGrammar(valid.levels, sep.separator), sep.separator);
+  if (ambiguity) return { error: ambiguityError(ambiguity, sep.separator) };
   const dupes = duplicateCodes(plannedCodes(plan, sep.separator));
   if (dupes.length > 0) {
     return {

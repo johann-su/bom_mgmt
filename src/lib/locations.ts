@@ -1,6 +1,6 @@
 import { asc } from "drizzle-orm";
 import { db } from "@/db";
-import { locationTypes } from "@/db/schema";
+import { locationTypeChildren, locationTypes } from "@/db/schema";
 import { describeAll, type FlatLocation } from "@/lib/location-tree";
 import { getCodeSeparator } from "@/lib/settings";
 
@@ -19,11 +19,29 @@ export async function loadLocations(): Promise<FlatLocation[]> {
   return rows;
 }
 
+// Types in their configured order, each with the child types it allows
+// (null = any) — the type grammar of src/lib/code-grammar.ts.
 export async function loadLocationTypes() {
-  return db.query.locationTypes.findMany({
-    orderBy: [asc(locationTypes.position), asc(locationTypes.name)],
-    columns: { id: true, name: true, icon: true, labelPattern: true, labelTemplateId: true },
-  });
+  const [types, edges] = await Promise.all([
+    db.query.locationTypes.findMany({
+      orderBy: [asc(locationTypes.position), asc(locationTypes.name)],
+      columns: {
+        id: true,
+        name: true,
+        icon: true,
+        labelPattern: true,
+        labelTemplateId: true,
+        restrictChildren: true,
+      },
+    }),
+    db.select().from(locationTypeChildren),
+  ]);
+  return types.map(({ restrictChildren, ...type }) => ({
+    ...type,
+    childTypeIds: restrictChildren
+      ? edges.filter((e) => e.parentTypeId === type.id).map((e) => e.childTypeId)
+      : null,
+  }));
 }
 
 export type LocationTypeOption = Awaited<ReturnType<typeof loadLocationTypes>>[number];

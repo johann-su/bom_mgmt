@@ -6,6 +6,7 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -268,9 +269,11 @@ export const oauthClientAssertion = pgTable("oauth_client_assertion", {
 //
 // The hierarchy (Shelf A → Box 1 → Bin I) is a plain tree of `locations`.
 // What a node *is* comes from its `location_types` row, which also owns the
-// label pattern its members are named by (see src/lib/label-pattern.ts). Types
-// don't constrain nesting — a shelf can hold boxes and loose drawers alike —
-// so the tree can be as regular or as ad hoc as the workshop.
+// label pattern its members are named by (see src/lib/label-pattern.ts). By
+// default a type can hold any other — a shelf of boxes and loose drawers alike
+// — but a type can be restricted to listed child types. Without a code
+// separator those restrictions are what keep codes readable (1›11 vs 11›1),
+// so they form a type grammar checked by src/lib/code-grammar.ts.
 
 export const locationTypes = pgTable("location_types", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -285,8 +288,24 @@ export const locationTypes = pgTable("location_types", {
   labelTemplateId: uuid("label_template_id").references((): AnyPgColumn => labelTemplates.id, {
     onDelete: "set null",
   }),
+  // False = may contain any type; true = only those in location_type_children.
+  restrictChildren: boolean("restrict_children").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// The child types a restricted location type allows (see restrictChildren).
+export const locationTypeChildren = pgTable(
+  "location_type_children",
+  {
+    parentTypeId: uuid("parent_type_id")
+      .notNull()
+      .references(() => locationTypes.id, { onDelete: "cascade" }),
+    childTypeId: uuid("child_type_id")
+      .notNull()
+      .references(() => locationTypes.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.parentTypeId, t.childTypeId] })],
+);
 
 export const locations = pgTable(
   "locations",
