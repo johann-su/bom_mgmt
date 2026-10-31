@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { and, eq, gt, isNull, count } from "drizzle-orm";
 import { db } from "@/db";
-import { locations, locationTypes, stock } from "@/db/schema";
+import { locations, locationTypeChildren, locationTypes, stock } from "@/db/schema";
 import { getSession } from "@/lib/auth";
 import { nextLabels, parseLabel, parsePattern, type ParsedPattern } from "@/lib/label-pattern";
 import { subtreeIds } from "@/lib/location-tree";
@@ -33,6 +33,35 @@ function siblingFilter(parentId: string | null) {
   return parentId ? eq(locations.parentId, parentId) : isNull(locations.parentId);
 }
 
+// The type grammar: a restricted parent type only takes its listed child
+// types (Settings → Location types). Null when `childTypeId` may go inside
+// `parentId`; top level takes any type.
+async function childTypeError(parentId: string | null, childTypeId: string): Promise<string | null> {
+  if (!parentId) return null;
+  const parent = await db.query.locations.findFirst({
+    where: eq(locations.id, parentId),
+    columns: { id: true },
+    with: { type: { columns: { id: true, name: true, restrictChildren: true } } },
+  });
+  if (!parent) return "Parent location not found";
+  if (!parent.type.restrictChildren) return null;
+  const [allowed] = await db
+    .select({ id: locationTypeChildren.childTypeId })
+    .from(locationTypeChildren)
+    .where(
+      and(
+        eq(locationTypeChildren.parentTypeId, parent.type.id),
+        eq(locationTypeChildren.childTypeId, childTypeId),
+      ),
+    );
+  if (allowed) return null;
+  const child = await db.query.locationTypes.findFirst({
+    where: eq(locationTypes.id, childTypeId),
+    columns: { name: true },
+  });
+  return `A ${parent.type.name} can't hold a ${child?.name ?? "location of this type"} — allow it under Settings → Location types`;
+}
+
 function revalidate() {
   revalidatePath("/locations", "layout");
   revalidatePath("/parts", "layout");
@@ -57,13 +86,8 @@ export async function createLocations(input: {
   const pattern = await typePattern(input.typeId);
   if ("error" in pattern) return pattern;
 
-  if (input.parentId) {
-    const parent = await db.query.locations.findFirst({
-      where: eq(locations.id, input.parentId),
-      columns: { id: true },
-    });
-    if (!parent) return { error: "Parent location not found" };
-  }
+  const grammar = await childTypeError(input.parentId, input.typeId);
+  if (grammar) return { error: grammar };
 
   let labels: string[];
   if (input.label !== undefined && input.label.trim() !== "") {
@@ -175,14 +199,19 @@ export async function setLocationLabelSlot(input: {
 // into itself or its own descendants, which would cut the subtree loose.
 export async function moveLocation(input: { id: string; parentId: string | null }): Promise<Result> {
   if (!(await getSession())) return { error: "You must be signed in" };
-  const all = await db.select({ id: locations.id, parentId: locations.parentId }).from(locations);
-  if (!all.some((l) => l.id === input.id)) return { error: "Location not found" };
+  const all = await db
+    .select({ id: locations.id, parentId: locations.parentId, typeId: locations.typeId })
+    .from(locations);
+  const moved = all.find((l) => l.id === input.id);
+  if (!moved) return { error: "Location not found" };
   if (input.parentId) {
     if (!all.some((l) => l.id === input.parentId)) return { error: "Target location not found" };
     if (subtreeIds(all, input.id).has(input.parentId)) {
       return { error: "Can't move a location into itself or one of its children" };
     }
   }
+  const grammar = await childTypeError(input.parentId, moved.typeId);
+  if (grammar) return { error: grammar };
   try {
     await db
       .update(locations)

@@ -106,7 +106,7 @@ export function fromRoman(text: string): number | null {
   return n;
 }
 
-function formatValue(token: CounterToken, value: number): string {
+export function formatValue(token: CounterToken, value: number): string {
   switch (token.kind) {
     case "A":
       return numberToLetters(value);

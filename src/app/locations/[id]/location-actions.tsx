@@ -33,12 +33,12 @@ type LocationInfo = {
 export function LocationActions({
   location,
   locations,
-  descendants,
+  invalidTargets,
 }: {
   location: LocationInfo;
   locations: LocationOption[];
-  // The location's own subtree — not valid move targets.
-  descendants: string[];
+  // Where it can't move: its own subtree, and locations whose type can't hold it.
+  invalidTargets: string[];
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"edit" | "move" | null>(null);
@@ -82,7 +82,7 @@ export function LocationActions({
         <MoveDialog
           location={location}
           locations={locations}
-          exclude={new Set(descendants)}
+          exclude={new Set(invalidTargets)}
           onClose={() => setDialog(null)}
         />
       )}

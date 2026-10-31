@@ -112,3 +112,19 @@ test("prepareSetup refuses a separator under which planned codes would repeat", 
   assert.ok("plan" in prepareSetup(mixed, ""));
   assert.ok("error" in prepareSetup(mixed, "x"));
 });
+
+test("prepareSetup checks the grammar, not just the starting tree", () => {
+  // Shelves {N:1-9} of boxes {N:1-9}: "12" is only ever 1 › 2, so no
+  // separator is needed — but boxes up to 12 would let "112" mean 1 › 12 or
+  // 11 › 2 once more shelves are added, even if the starting tree is small.
+  const small = [
+    level({ name: "Shelf", labelPattern: "{N:1-9}", count: 2 }),
+    level({ name: "Box", labelPattern: "{N:1-9}", count: 2 }),
+  ];
+  assert.ok("plan" in prepareSetup(small, ""));
+  const wide = [
+    level({ name: "Shelf", labelPattern: "{N:1-12}", count: 2 }),
+    level({ name: "Box", labelPattern: "{N:1-12}", count: 2 }),
+  ];
+  assert.ok("error" in prepareSetup(wide, ""));
+});

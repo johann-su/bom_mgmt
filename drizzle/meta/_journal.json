@@ -92,6 +92,20 @@
       "when": 1793113611982,
       "tag": "0012_part_generic",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793367724503,
+      "tag": "0013_location_type_grammar",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793368805712,
+      "tag": "0014_location_type_canvas",
+      "breakpoints": true
     }
   ]
 }
