@@ -9,12 +9,11 @@ import { genericType } from "@/lib/generic-families";
 import { MAX_UPLOAD_BYTES, remoteFilename } from "@/lib/file-kind";
 import * as mutations from "@/lib/part-mutations";
 import { createGenericParts as createGeneric } from "@/lib/generic-part-mutations";
-import { storePartFiles } from "@/lib/part-files";
+import { deletePartFile as removePartFile, storePartFiles } from "@/lib/part-files";
 import { ensureCategories } from "@/lib/part-import";
 import { parseOrderUrl } from "@/lib/part-input";
 import { fetchProductInfo, fetchRemoteFile } from "@/lib/product-fetch";
 import type { ProductInfo } from "@/lib/product-page";
-import { blobStore } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
 type Result = { error?: string };
@@ -168,18 +167,7 @@ export async function deletePart(input: { id: string }): Promise<Result> {
 
 export async function deletePartFile(input: { fileId: string }): Promise<Result> {
   if (!(await getSession())) return { error: "You must be signed in" };
-  const [file] = await db
-    .delete(files)
-    .where(eq(files.id, input.fileId))
-    .returning({ partId: files.partId, key: files.storageKey });
-  if (!file) return { error: "File not found" };
-  try {
-    await blobStore().delete([file.key]);
-  } catch (err) {
-    logger.warn({ err }, `Failed to delete stored file ${input.fileId}`);
-  }
-  revalidate(file.partId);
-  return {};
+  return removePartFile(input.fileId);
 }
 
 // Makes an image the part's thumbnail by moving it to the front.

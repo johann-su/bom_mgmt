@@ -16,7 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { ConfirmButton } from "@/components/confirm-button";
-import { deleteBom, importBomCsv, type ImportSummary } from "../actions";
+import type { ImportSummary } from "@/lib/bom-mutations";
+import { deleteBom, importBomCsv } from "../actions";
 import { BomForm } from "../bom-form";
 
 type Bom = { id: string; name: string; description: string };

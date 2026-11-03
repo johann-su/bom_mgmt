@@ -1,9 +1,9 @@
-// Part and stock writes, shared by the server actions (src/app/parts/*.ts) and
-// the MCP tools (src/lib/mcp/tools.ts). Callers authenticate first and pass
-// the acting user's id; everything here trusts it. Each function validates its
-// input, writes inside a transaction, and revalidates the pages that show the
-// result — so a change made by an LLM client shows up in the app like any
-// other.
+// Part and stock writes, shared by the server actions (src/app/parts/*.ts),
+// the MCP tools (src/lib/mcp/tools.ts) and the REST API (src/app/api/v1).
+// Callers authenticate first and pass the acting user's id; everything here
+// trusts it. Each function validates its input, writes inside a transaction,
+// and revalidates the pages that show the result — so a change made by an LLM
+// client or a script shows up in the app like any other.
 
 import { revalidatePath } from "next/cache";
 import { count, eq } from "drizzle-orm";
@@ -22,7 +22,16 @@ import { applyDelta, locationCodes, recordMovement, stockAt } from "@/lib/moveme
 import { blobStore } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 
-export type MutationResult = { error?: string };
+/**
+ * A write's outcome: nothing on success, or an error message safe to show.
+ * `code` classifies the error for the REST API's status codes; without one it
+ * is invalid input (400). Forms and MCP tools only show the message.
+ */
+export type MutationResult = { error?: string; code?: MutationErrorCode };
+// not_found: the record the write targets doesn't exist (404).
+// conflict: the request is fine, the inventory's state refuses it — not
+// enough stock, a part still in a BOM — and may allow it later (409).
+export type MutationErrorCode = "not_found" | "conflict";
 
 // Thrown inside a transaction to roll it back with a user-facing message.
 class StockError extends Error {}
@@ -127,7 +136,7 @@ export async function updatePart(id: string, raw: Record<string, unknown>): Prom
     }
     return true;
   });
-  if (!found) return { error: "Part not found" };
+  if (!found) return { error: "Part not found", code: "not_found" };
   revalidateInventory(id);
   return {};
 }
@@ -157,14 +166,16 @@ export async function deletePart(id: string): Promise<MutationResult> {
     .select({ value: count() })
     .from(bomItems)
     .where(eq(bomItems.partId, id));
-  if (inBoms > 0) return { error: `It is used in ${inBoms} BOM(s) — remove it there first` };
+  if (inBoms > 0) {
+    return { error: `It is used in ${inBoms} BOM(s) — remove it there first`, code: "conflict" };
+  }
 
   const stored = await db
     .select({ key: files.storageKey })
     .from(files)
     .where(eq(files.partId, id));
   const deleted = await db.delete(parts).where(eq(parts.id, id)).returning({ id: parts.id });
-  if (deleted.length === 0) return { error: "Part not found" };
+  if (deleted.length === 0) return { error: "Part not found", code: "not_found" };
 
   // Rows are gone (cascade); storage cleanup is best-effort, an orphaned
   // object is harmless.
@@ -200,7 +211,7 @@ export async function changeStock(
   },
 ): Promise<MutationResult> {
   const tracking = await partTracking(input.partId);
-  if (!tracking) return { error: "Part not found" };
+  if (!tracking) return { error: "Part not found", code: "not_found" };
   if (!STOCK_MODES[tracking].includes(input.mode)) {
     const label = TRACKING_INFO[tracking].label.toLowerCase();
     return {
@@ -276,7 +287,7 @@ export async function changeStock(
       });
     });
   } catch (err) {
-    if (err instanceof StockError) return { error: err.message };
+    if (err instanceof StockError) return { error: err.message, code: "conflict" };
     throw err;
   }
   revalidateInventory(input.partId);
@@ -301,7 +312,7 @@ export async function moveStock(
   },
 ): Promise<MutationResult> {
   const tracking = await partTracking(input.partId);
-  if (!tracking) return { error: "Part not found" };
+  if (!tracking) return { error: "Part not found", code: "not_found" };
   const counted = tracking === "exact";
   const quantity = counted ? parseQuantity(input.quantity) : 0;
   if (quantity === null) return { error: "Enter a whole number" };
@@ -358,7 +369,7 @@ export async function moveStock(
       });
     });
   } catch (err) {
-    if (err instanceof StockError) return { error: err.message };
+    if (err instanceof StockError) return { error: err.message, code: "conflict" };
     throw err;
   }
   revalidateInventory(input.partId);

@@ -57,6 +57,11 @@ sidebar shell).
   `ENABLE_MCP_WRITE=true`). OAuth sign-in and approval in the app;
   connections are listed and revocable under Settings → AI access. See
   [docs/mcp.md](docs/mcp.md).
+- **REST API** (opt-in, `ENABLE_API=true`) — a versioned `/api/v1` for
+  scripts and integrations (scanner stations, KiCad plugins, Home Assistant,
+  n8n): parts, stock bookings and moves, locations, the movement log, BOMs and
+  builds, part files. Personal API keys with scopes under Settings → API keys;
+  OpenAPI document at `/api/v1/openapi.json`. See [docs/api.md](docs/api.md).
 - **Files** on S3-compatible storage (MinIO in compose) or the local
   filesystem (`STORAGE_BACKEND=filesystem`).
 

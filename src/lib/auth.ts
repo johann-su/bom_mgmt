@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { genericOAuth, jwt } from "better-auth/plugins";
 import { mcp } from "@better-auth/mcp";
+import { apiKey } from "@better-auth/api-key";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -17,6 +18,7 @@ import {
 import { CALLBACK_PATH_HEADER, signInPath } from "@/lib/callback-url";
 import { initialRole } from "@/lib/admin";
 import { appUrl } from "@/lib/app-url";
+import { API_KEY_PREFIX } from "@/lib/api/scopes";
 
 // OAuth2 sign-in options shown on /sign-in, from env (see .env.example):
 // generic OIDC for self-hosted IdPs, plus GitHub and Google. Redirect URIs
@@ -88,6 +90,13 @@ export const mcpResource = () => appUrl(MCP_ENDPOINT_PATH).toString();
 export const MCP_LOGIN_PATH = "/mcp/authorize";
 export const MCP_CONSENT_PATH = "/mcp/consent";
 
+// REST API (/api/v1, docs/api.md): opt-in like MCP. It adds no
+// unauthenticated surface, but an API key is a long-lived bearer credential
+// that bypasses SSO and its MFA — a second door an operator who relies on
+// DISABLE_PASSWORD_LOGIN may not want. Gates the api-key plugin, the /api/v1
+// routes and Settings → API keys.
+export const apiEnabled = envFlag(process.env.ENABLE_API);
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -105,6 +114,8 @@ export const auth = betterAuth({
       oauthRefreshToken: schema.oauthRefreshToken,
       oauthConsent: schema.oauthConsent,
       oauthClientAssertion: schema.oauthClientAssertion,
+      // Written by the api-key plugin only; harmless while the API is off.
+      apikey: schema.apikey,
     },
   }),
   emailAndPassword: {
@@ -209,6 +220,28 @@ export const auth = betterAuth({
             // tokens can write, so keep that window short; the refresh token
             // carries the 30-day connection.
             accessTokenExpiresIn: 15 * 60,
+          }),
+        ]
+      : []),
+    // Mounts /api/auth/api-key/* for the signed-in user's own keys. Keys are
+    // created by our server action (src/app/settings/api-keys/actions.ts),
+    // because scopes ("permissions") are a server-only field: a key created
+    // straight through the HTTP endpoint carries none, which /api/v1 treats
+    // as no access at all.
+    ...(apiEnabled
+      ? [
+          apiKey({
+            defaultPrefix: API_KEY_PREFIX,
+            requireName: true,
+            maximumNameLength: 64,
+            // Never: a key must not double as a browser session, or it would
+            // open every cookie-guarded page and server action, not just
+            // /api/v1 with its scopes.
+            enableSessionForAPIKeys: false,
+            // The plugin's default is 10 requests per *day*. This is a
+            // per-key ceiling against a runaway script, not a quota.
+            rateLimit: { enabled: true, timeWindow: 60_000, maxRequests: 600 },
+            keyExpiration: { defaultExpiresIn: null, maxExpiresIn: 365 },
           }),
         ]
       : []),

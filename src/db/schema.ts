@@ -266,6 +266,49 @@ export const oauthClientAssertion = pgTable("oauth_client_assertion", {
   expiresAt: timestamp("expires_at").notNull(),
 });
 
+// --- API keys (`@better-auth/api-key`) ---
+//
+// Personal keys for the REST API (/api/v1, docs/api.md). Transcribed from the
+// plugin's schema like the OAuth tables above — property names must stay as
+// spelled — with one addition: the plugin declares reference_id a plain
+// string, but deleting a user must kill their keys, so it gets a cascading FK.
+// Only the key's hash is stored. Only written while ENABLE_API is set.
+export const apikey = pgTable(
+  "apikey",
+  {
+    id: text("id").primaryKey(),
+    configId: text("config_id").notNull().default("default"),
+    name: text("name"),
+    start: text("start"),
+    referenceId: text("reference_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    prefix: text("prefix"),
+    key: text("key").notNull(),
+    refillInterval: integer("refill_interval"),
+    refillAmount: integer("refill_amount"),
+    lastRefillAt: timestamp("last_refill_at"),
+    enabled: boolean("enabled").default(true),
+    rateLimitEnabled: boolean("rate_limit_enabled").default(true),
+    // Defaults mirror the plugin config in src/lib/auth.ts (600/min).
+    rateLimitTimeWindow: integer("rate_limit_time_window").default(60000),
+    rateLimitMax: integer("rate_limit_max").default(600),
+    requestCount: integer("request_count").default(0),
+    remaining: integer("remaining"),
+    lastRequest: timestamp("last_request"),
+    expiresAt: timestamp("expires_at"),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+    permissions: text("permissions"),
+    metadata: text("metadata"),
+  },
+  (t) => [
+    index("apikey_config_id_idx").on(t.configId),
+    index("apikey_reference_id_idx").on(t.referenceId),
+    index("apikey_key_idx").on(t.key),
+  ],
+);
+
 // --- Storage locations ---
 //
 // The hierarchy (Shelf A → Box 1 → Bin I) is a plain tree of `locations`.

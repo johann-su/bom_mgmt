@@ -1,7 +1,8 @@
-// Stores files on a part: blob first, then the row, appended after the
-// part's existing files (the first image is the thumbnail). Shared by the
-// upload route and attaching a shop's datasheet/photo. Callers validate
-// names (fileKind) and sizes first.
+// Files on a part. Storing: blob first, then the row, appended after the
+// part's existing files (the first image is the thumbnail) — shared by the
+// upload routes and attaching a shop's datasheet/photo; callers validate
+// names (fileKind) and sizes first. Deleting: shared by the part page and the
+// REST API.
 
 import { count, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -9,6 +10,7 @@ import { files } from "@/db/schema";
 import { blobStore, newStorageKey } from "@/lib/storage";
 import { contentTypeFor, fileKind } from "@/lib/file-kind";
 import { logger } from "@/lib/logger";
+import { revalidateInventory, type MutationResult } from "@/lib/part-mutations";
 
 export async function storePartFiles(
   partId: string,
@@ -42,4 +44,21 @@ export async function storePartFiles(
     ids.push(row.id);
   }
   return { ids };
+}
+
+// Deletes one file of a part. The row goes first; removing the stored object
+// is best-effort, since an orphaned object is harmless.
+export async function deletePartFile(fileId: string): Promise<MutationResult> {
+  const [file] = await db
+    .delete(files)
+    .where(eq(files.id, fileId))
+    .returning({ partId: files.partId, key: files.storageKey });
+  if (!file) return { error: "File not found", code: "not_found" };
+  try {
+    await blobStore().delete([file.key]);
+  } catch (err) {
+    logger.warn({ err }, `Failed to delete stored file ${fileId}`);
+  }
+  revalidateInventory(file.partId);
+  return {};
 }
